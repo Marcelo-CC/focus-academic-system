@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Regulador - Dashboard Docente</title>
+  <!-- Chart.js para analítica -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- QR Code JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #3f51b5;
+      --primary-dark: #303f9f;
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --text-main: #2c3e50;
+      --text-muted: #7f8c8d;
+      --green: #2ecc71;
+      --yellow: #f1c40f;
+      --red: #e74c3c;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    /* PANTALLA DE LOGIN */
+    #login-view {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f0f2f5;
+    }
+
+    .login-card {
+      background: #ffffff;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .login-card h2 {
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    /* HEADER / NAVBAR */
+    .header {
+      background-color: var(--card-bg);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .course-badge {
+      background: #eef2ff;
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* TABS */
+    .tabs-bar {
+      background-color: var(--card-bg);
+      display: flex;
+      gap: 8px;
+      padding: 0 24px;
+      border-bottom: 1px solid #e2e8f0;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 12px 18px;
+      border: none;
+      background: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--primary);
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* LAYOUT PRINCIPAL */
+    .main-container {
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* GRID MÓDULO 1 */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 992px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* TARJETAS */
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid #e2e8f0;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* MÉTRICA EN VIVO */
+    .metric-box {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .progress-bar-bg {
+      flex: 1;
+      height: 18px;
+      background-color: #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background-color: var(--green);
+      transition: width 0.5s ease;
+    }
+
+    /* GRILLA SEMÁFORO DE ESTUDIANTES */
+    .students-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 12px;
+    }
+
+    .student-card {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: #fff;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-green { background-color: var(--green); }
+    .dot-yellow { background-color: var(--yellow); }
+    .dot-red { background-color: var(--red); }
+
+    .student-info {
+      font-size: 13px;
+    }
+
+    .student-name {
+      font-weight: 600;
+    }
+
+    .student-detail {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* QR Y BOTONES */
+    .qr-panel {
+      text-align: center;
+    }
+
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      margin: 15px 0;
+    }
+
+    .btn {
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+    }
+
+    .btn-primary { background-color: var(--primary); color: white; }
+    .btn-primary:hover { background-color: var(--primary-dark); }
+    .btn-danger { background-color: var(--red); color: white; }
+
+    .btn-logout {
+      background: none;
+      border: 1px solid #cbd5e1;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .summary-list {
+      list-style: none;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    .summary-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    /* BITÁCORA DE NOTIFICACIONES */
+    .event-card {
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .event-green { background-color: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
+    .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
+
+    /* TARJETA DEL TEMPORIZADOR SINO */
+    .timer-card {
+      margin-top: 25px;
+      padding: 20px;
+      background: #eef2ff;
+      border: 2px solid #c7d2fe;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .timer-display {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin-top: 8px;
+      letter-spacing: 2px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      margin-top: 5px;
+    }
+    .badge-active { background: #dcfce7; color: #15803d; }
+    .badge-ended { background: #fee2e2; color: #b91c1c; }
+  </style>
+</head>
+<body>
+
+  <!-- VISTA 1: LOGIN DOCENTE -->
+  <div id="login-view">
+    <div class="login-card">
+      <h2>🎓 Acceso Docente</h2>
+      <p>Ingresa tus credenciales de Supabase</p>
+      <form id="login-form" onsubmit="iniciarSesionDocente(event)">
+        <div class="form-group">
+          <label>Correo Electrónico</label>
+          <input type="email" id="login-email" class="form-control" placeholder="docente@universidad.edu" required>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-login-submit">Iniciar Sesión</button>
+      </form>
+      <div id="login-error" style="color: var(--red); font-size: 13px; margin-top: 12px;"></div>
+    </div>
+  </div>
+
+  <!-- VISTA 2: DASHBOARD DOCENTE -->
+  <div id="app-view" style="display: none;">
+    <!-- HEADER -->
+    <header class="header">
+      <div class="brand-title">
+        <span>🎓 Sistema Regulador</span>
+        <span class="course-badge" id="header-curso-display">TESIS 2 - Aula E -201</span>
+      </div>
+      <div class="user-info">
+        <span id="docente-nombre-display">Prof. Docente</span>
+        <button class="btn-logout" onclick="cerrarSesionDocente()">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- BARRA DE NAVEGACIÓN -->
+    <nav class="tabs-bar">
+      <button class="tab-btn active" onclick="switchTab('tab-vivo')">1. Panel en Vivo</button>
+      <button class="tab-btn" onclick="switchTab('tab-programacion')">2. Programación de Sesión</button>
+      <button class="tab-btn" onclick="switchTab('tab-evaluacion')">3. Gamificación y Notas</button>
+      <button class="tab-btn" onclick="switchTab('tab-analitica')">4. Analítica (BI)</button>
+      <button class="tab-btn" onclick="switchTab('tab-bitacora')">5. Bitácora de Eventos</button>
+    </nav>
+
+    <main class="main-container">
+
+      <!-- MÓDULO 1: PANEL EN VIVO -->
+      <div id="tab-vivo" class="tab-content active">
+        <div class="dashboard-grid">
+          <!-- IZQUIERDA: MÉTRICA Y ALUMNOS -->
+          <div>
+            <div class="card">
+              <div class="card-title">Nivel de Atención Global</div>
+              <div class="metric-box">
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" id="bar-enfoque"></div>
+                </div>
+                <strong id="percentage-text" style="font-size: 18px; color: var(--green);">0% ENFOQUE</strong>
+              </div>
+
+              <div class="card-title">
+                Estado de los Estudiantes (<span id="total-alumnos">0</span> Activos)
+              </div>
+              <div class="students-grid" id="students-grid">
+                <div style="color: var(--text-muted); font-size: 13px; grid-column: 1 / -1;">Cargando estudiantes...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DERECHA: QR Y RESUMEN -->
+          <div>
+            <div class="card qr-panel">
+              <div class="card-title" style="justify-content: center;">Código QR de Asistencia</div>
+              <div id="qr-activo" style="display: none;">
+                <div id="qrcode"></div>
+                <p id="timer-text" style="font-size: 13px; color: var(--primary); font-weight: bold; margin-bottom: 12px;"></p>
+                <button class="btn btn-danger" onclick="detenerQR()">Dejar de Compartir QR</button>
+              </div>
+              <div id="qr-inactivo">
+                <button class="btn btn-primary" onclick="iniciarRotacionQR()">Generar Código QR Dinámico</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Resumen en Tiempo Real</div>
+              <ul class="summary-list">
+                <li><span>🟢 Enfoque:</span><strong id="count-green">0 alumnos</strong></li>
+                <li><span>🟡 Distracción Leve:</span><strong id="count-yellow">0 alumnos</strong></li>
+                <li><span>🔴 Distracción Crítica:</span><strong id="count-red">0 alumnos</strong></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 2: PROGRAMACIÓN DE SESIÓN -->
+      <div id="tab-programacion" class="tab-content">
+        <div class="card">
+          <div class="card-title">Configuración de la Sesión Lectiva</div>
+          <form id="form-programacion" onsubmit="guardarConfiguracionSesion(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="form-group">
+                <label>Nombre de la Asignatura</label>
+                <input type="text" id="input-asignatura" class="form-control" placeholder="Ej. TESIS 2" required>
+              </div>
+              <div class="form-group">
+                <label>Grupo / Aula</label>
+                <input type="text" id="input-grupo" class="form-control" placeholder="Ej. Aula E -201" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Duración del "Modo Enfoque" (Minutos)</label>
+              <input type="number" id="input-duracion" class="form-control" value="10" min="1" max="180" required>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button type="submit" class="btn btn-primary" style="width: auto;">Guardar y Aplicar Ajustes</button>
+              <span id="mensaje-guardado" style="color: var(--green); font-size: 13px; font-weight: 600;"></span>
+            </div>
+          </form>
+
+          <!-- TARJETA DEL TIEMPO EN VIVO WEB -->
+          <div class="timer-card">
+            <h4>Tiempo Restante del Modo Enfoque</h4>
+            <span id="badgeEstado" class="status-badge badge-ended">SIN SESIÓN</span>
+            <div id="tiempoRestanteWeb" class="timer-display">00:00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 3: GAMIFICACIÓN -->
+      <div id="tab-evaluacion" class="tab-content">
+        <div class="card">
+          <div class="card-title">Puntaje Automático de Participación</div>
+          <p style="font-size: 13px; color: var(--text-muted);">Registro automático derivado del porcentaje de atención global.</p>
+        </div>
+      </div>
+
+      <!-- MÓDULO 4: ANALÍTICA -->
+      <div id="tab-analitica" class="tab-content">
+        <div class="card">
+          <div class="card-title">Tendencias de Distracción</div>
+          <div style="max-width: 500px; margin: 0 auto;">
+            <canvas id="chartAnalitica"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 5: BITÁCORA DE EVENTOS -->
+      <div id="tab-bitacora" class="tab-content">
+        <div class="card">
+          <div class="card-title">Historial de Notificaciones y Eventos en Tiempo Real</div>
+          <div id="alertas-container">
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Cargando registro de eventos...</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+<script>
+  // CONFIGURACIÓN DE SUPABASE
+  const SUPABASE_URL = 'https://yylffuwhmkbhurkyszgf.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_YQAw2qO7E7bSRhVJBZk6sw_oUDpVNy-';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let currentUser = null;
+  let timerWebInterval = null;
+
+  // CONTROL DE SESIÓN DOCENTE (AUTH)
+  async function verificarSesionExistente() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      mostrarApp(session.user);
+    } else {
+      document.getElementById('login-view').style.display = 'flex';
+      document.getElementById('app-view').style.display = 'none';
+    }
+  }
+
+  async function iniciarSesionDocente(event) {
+    event.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const errorDiv = document.getElementById('login-error');
+    const btnSubmit = document.getElementById('btn-login-submit');
+
+    errorDiv.innerText = '';
+    btnSubmit.innerText = 'Ingresando...';
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errorDiv.innerText = 'Error: ' + error.message;
+      btnSubmit.innerText = 'Iniciar Sesión';
+    } else if (data.user) {
+      currentUser = data.user;
+      mostrarApp(data.user);
+    }
+  }
+
+  async function cerrarSesionDocente() {
+    await supabaseClient.auth.signOut();
+    location.reload();
+  }
+
+  function mostrarApp(user) {
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'block';
+
+    const nombre = user.user_metadata?.full_name || user.email.split('@')[0].toUpperCase();
+    document.getElementById('docente-nombre-display').innerText = 'Prof. ' + nombre;
+
+    cargarConfiguracionSesion();
+    escucharTiempoReal();
+  }
+
+  // MÓDULO 2: CARGAR CONFIGURACIÓN
+  async function cargarConfiguracionSesion() {
+    let asignatura = "TESIS 2";
+    let grupo = "Aula E -201";
+    let duracion = 10;
+    let creadoEn = null;
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('configuracion_sesion')
+        .select('*')
+        .eq('docente_id', currentUser.id)
+        .order('creado_en', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        asignatura = data.asignatura || asignatura;
+        grupo = data.grupo || grupo;
+        duracion = data.duracion || duracion;
+        creadoEn = data.creado_en;
+      }
+    } catch (err) {
+      console.log('Error al cargar sesión:', err);
+    }
+
+    document.getElementById('input-asignatura').value = asignatura;
+    document.getElementById('input-grupo').value = grupo;
+    document.getElementById('input-duracion').value = duracion;
+    document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
+
+    if (creadoEn) {
+      iniciarCronometroWeb(duracion, new Date(creadoEn));
+    }
+  }
+
+  // MÓDULO 2: GUARDAR Y SINCRONIZAR TIEMPO REAL CON LA APP FLUTTER
+  async function guardarConfiguracionSesion(event) {
+    event.preventDefault();
+    const asignatura = document.getElementById('input-asignatura').value;
+    const grupo = document.getElementById('input-grupo').value;
+    const duracion = parseInt(document.getElementById('input-duracion').value);
+    const msg = document.getElementById('mensaje-guardado');
+
+    const horaInicioISO = new Date().toISOString();
+
+    try {
+      await supabaseClient.from('configuracion_sesion').upsert({
+        docente_id: currentUser.id,
+        asignatura: asignatura,
+        grupo: grupo,
+        duracion: duracion,
+        estado: 'ACTIVA',
+        creado_en: horaInicioISO
+      }, { onConflict: 'docente_id' });
+
+      iniciarCronometroWeb(duracion, new Date(horaInicioISO));
+
+      document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
+      msg.innerText = '✓ Guardado y sincronizado con alumnos';
+      setTimeout(() => { msg.innerText = ''; }, 3000);
+
+    } catch (err) {
+      console.error('Error guardando en Supabase:', err);
+      alert('Error guardando los ajustes en Supabase');
+    }
+  }
+
+  // LÓGICA DEL CRONÓMETRO WEB EN TIEMPO REAL
+  function iniciarCronometroWeb(minutosTotal, fechaInicio) {
+    if (timerWebInterval) clearInterval(timerWebInterval);
+
+    const duracionTotalSegundos = minutosTotal * 60;
+    const badge = document.getElementById('badgeEstado');
+
+    timerWebInterval = setInterval(() => {
+      const ahora = new Date();
+      const segundosTranscurridos = Math.floor((ahora - fechaInicio) / 1000);
+      const restantes = duracionTotalSegundos - segundosTranscurridos;
+
+      if (restantes <= 0) {
+        clearInterval(timerWebInterval);
+        document.getElementById('tiempoRestanteWeb').innerText = "00:00";
+        badge.innerText = "SESIÓN FINALIZADA";
+        badge.className = "status-badge badge-ended";
+        return;
+      }
+
+      badge.innerText = "SESIÓN EN CURSO";
+      badge.className = "status-badge badge-active";
+
+      const min = Math.floor(restantes / 60).toString().padStart(2, '0');
+      const seg = (restantes % 60).toString().padStart(2, '0');
+      document.getElementById('tiempoRestanteWeb').innerText = `${min}:${seg}`;
+    }, 1000);
+  }
+
+  // CAMBIO DE PESTAÑAS (TABS)
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(tabId).classList.add('active');
+    event.currentTarget.classList.add('active');
+
+    if (tabId === 'tab-analitica') renderGrafico();
+  }
+
+  // ROTACIÓN DE CÓDIGO QR
+  let timerInterval = null;
+  let segundosRestantes = 10;
+
+  function generarNuevoQR() {
+    segundosRestantes = 10;
+    const qrData = `CLASE_QR_${Date.now()}`;
+    document.getElementById('timer-text').innerText = `Se actualiza en: ${segundosRestantes} segundos`;
+    
+    const container = document.getElementById('qrcode');
+    container.innerHTML = '';
+    new QRCode(container, { text: qrData, width: 160, height: 160 });
+  }
+
+  function iniciarRotacionQR() {
+    document.getElementById('qr-inactivo').style.display = 'none';
+    document.getElementById('qr-activo').style.display = 'block';
+    generarNuevoQR();
+
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (segundosRestantes > 1) {
+        segundosRestantes--;
+        document.getElementById('timer-text').innerText = `Se actualiza en: ${segundosRestantes} segundos`;
+      } else {
+        generarNuevoQR();
+      }
+    }, 1000);
+  }
+
+  function detenerQR() {
+    if (timerInterval) clearInterval(timerInterval);
+    document.getElementById('qr-activo').style.display = 'none';
+    document.getElementById('qr-inactivo').style.display = 'block';
+    document.getElementById('qrcode').innerHTML = '';
+  }
+
+  // PROCESAMIENTO EN TIEMPO REAL (MÓDULO 1 Y MÓDULO 5)
+  function procesarModulo1Y5(registros) {
+    if (!registros || registros.length === 0) return;
+
+    // Bitácora de eventos
+    const containerBitacora = document.getElementById('alertas-container');
+    containerBitacora.innerHTML = registros.map(buildEventCard).join('');
+
+    // Mapeo del último estado por estudiante
+    const alumnosMap = {};
+
+    registros.forEach(item => {
+      const nombre = item.estudiante_nombre || 'Estudiante';
+      if (!alumnosMap[nombre]) {
+        let estado = 'green';
+        let detalle = 'Activo / Enfoque';
+
+        switch (item.evento) {
+          case 'salio_de_app':
+            estado = 'red';
+            detalle = 'Salió de la app';
+            break;
+          case 'pantalla_bloqueada':
+            estado = 'red';
+            detalle = 'Pantalla bloqueada';
+            break;
+          case 'desbloqueo':
+            estado = 'yellow';
+            detalle = 'Desbloqueó el cel (esperando)';
+            break;
+          case 'vio_notificaciones':
+            estado = 'yellow';
+            detalle = 'Vio notificaciones';
+            break;
+          case 'regreso':
+          case 'ingreso':
+            estado = 'green';
+            detalle = 'Activo / Enfoque';
+            break;
+        }
+
+        alumnosMap[nombre] = { nombre, estado, detalle };
+      }
+    });
+
+    const listaAlumnos = Object.values(alumnosMap);
+    const total = listaAlumnos.length;
+
+    let greenCount = 0;
+    let yellowCount = 0;
+    let redCount = 0;
+
+    listaAlumnos.forEach(a => {
+      if (a.estado === 'green') greenCount++;
+      if (a.estado === 'yellow') yellowCount++;
+      if (a.estado === 'red') redCount++;
+    });
+
+    document.getElementById('total-alumnos').innerText = total;
+    document.getElementById('count-green').innerText = `${greenCount} alumnos`;
+    document.getElementById('count-yellow').innerText = `${yellowCount} alumnos`;
+    document.getElementById('count-red').innerText = `${redCount} alumnos`;
+
+    const porcentaje = total > 0 ? Math.round(((greenCount + (yellowCount * 0.5)) / total) * 100) : 0;
+    
+    const fillBar = document.getElementById('bar-enfoque');
+    fillBar.style.width = `${porcentaje}%`;
+    document.getElementById('percentage-text').innerText = `${porcentaje}% ENFOQUE`;
+
+    const grid = document.getElementById('students-grid');
+    grid.innerHTML = listaAlumnos.map(est => `
+      <div class="student-card">
+        <div class="status-dot dot-${est.estado}"></div>
+        <div class="student-info">
+          <div class="student-name">${est.nombre}</div>
+          <div class="student-detail">${est.detalle}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function formatearHora(isoString) {
+    try {
+      const fecha = new Date(isoString);
+      return `${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}:${String(fecha.getSeconds()).padStart(2, '0')}`;
+    } catch (_) { return isoString; }
+  }
+
+  function buildEventCard(alerta) {
+    const { evento, estudiante_nombre, fecha_hora } = alerta;
+    const hora = formatearHora(fecha_hora);
+    let clase = 'event-green';
+    let icono = '✔️';
+    let mensaje = '';
+
+    switch (evento) {
+      case 'salio_de_app':
+        mensaje = `${estudiante_nombre} salió de la aplicación o cambió de pestaña.`;
+        clase = 'event-red';
+        icono = '⚠';
+        break;
+      case 'pantalla_bloqueada':
+        mensaje = `${estudiante_nombre} bloqueó la pantalla.`;
+        clase = 'event-red';
+        icono = '🔒';
+        break;
+      case 'desbloqueo':
+        mensaje = `${estudiante_nombre} desbloqueó el celular (10s de gracia).`;
+        clase = 'event-orange';
+        icono = '🔓';
+        break;
+      case 'vio_notificaciones':
+        mensaje = `${estudiante_nombre} desplegó la barra de notificaciones.`;
+        clase = 'event-orange';
+        icono = '🔔';
+        break;
+      case 'regreso':
+        mensaje = `${estudiante_nombre} volvió a la aplicación.`;
+        clase = 'event-green';
+        icono = '✔️';
+        break;
+      case 'ingreso':
+        mensaje = `${estudiante_nombre} escaneó el QR e inició clase.`;
+        clase = 'event-green';
+        icono = '📱';
+        break;
+      default:
+        mensaje = `${estudiante_nombre}: ${evento}`;
+    }
+
+    return `<div class="event-card ${clase}"><span>${icono}</span><span>[${hora}] ${mensaje}</span></div>`;
+  }
+
+  function escucharTiempoReal() {
+    const obtenerAlertas = () => {
+      supabaseClient
+        .from('alertas_inactividad')
+        .select('*')
+        .order('fecha_hora', { ascending: false })
+        .then(({ data }) => {
+          if (data) procesarModulo1Y5(data);
+        });
+    };
+
+    obtenerAlertas();
+
+    supabaseClient
+      .channel('alertas-realtime-web')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inactividad' }, obtenerAlertas)
+      .subscribe();
+  }
+
+  let chartInstance = null;
+  function renderGrafico() {
+    if (chartInstance) return;
+    const ctx = document.getElementById('chartAnalitica').getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Redes Sociales (45%)', 'Mensajería (30%)', 'Juegos (15%)', 'Otros (10%)'],
+        datasets: [{
+          data: [45, 30, 15, 10],
+          backgroundColor: ['#e74c3c', '#e67e22', '#2ecc71', '#95a5a6']
+        }]
+      },
+      options: { responsive: true }
+    });
+  }
+
+  verificarSesionExistente();
+</script>
+</body>
+</html>
