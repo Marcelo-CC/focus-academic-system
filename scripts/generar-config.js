@@ -25,6 +25,13 @@ const salida = path.join(raiz, 'public');
 fs.mkdirSync(salida, { recursive: true });
 
 fs.copyFileSync(path.join(raiz, 'index.html'), path.join(salida, 'index.html'));
+// Logo del panel (favicon y encabezado)
+const carpetaLogo = path.join(salida, 'assets', 'branding');
+fs.mkdirSync(carpetaLogo, { recursive: true });
+fs.copyFileSync(
+  path.join(raiz, 'assets', 'branding', 'logo.svg'),
+  path.join(carpetaLogo, 'logo.svg')
+);
 fs.writeFileSync(
   path.join(salida, 'config.js'),
   `window.SUPABASE_CONFIG = ${JSON.stringify({ url, publishableKey }, null, 2)};\n`

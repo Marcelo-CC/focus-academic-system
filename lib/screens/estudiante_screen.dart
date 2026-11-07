@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/supabase_config.dart';
 import 'login_screen.dart';
@@ -25,6 +27,13 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
   bool _guardandoAsistencia = false;
   bool _sesionIniciada = false;
+
+  // Mientras se comprueba si había una clase en curso al abrir la app
+  bool _restaurandoSesion = true;
+
+  // Clave en el almacenamiento local del celular donde se recuerda
+  // la clase escaneada, para retomarla si el estudiante cierra la app.
+  static const String _claveSesionLocal = 'sesion_en_curso';
 
   // ============================================================
   // TEMPORIZADOR DEL MODO ENFOQUE
@@ -75,6 +84,90 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initScreenStateListener();
+    _restaurarSesion();
+  }
+
+  // ============================================================
+  // RETOMAR LA CLASE SI EL ESTUDIANTE CERRÓ Y REABRIÓ LA APP
+  // ============================================================
+  Future<void> _guardarSesionLocal(
+    Map<String, dynamic> sesion,
+    String codigo,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _claveSesionLocal,
+        jsonEncode({
+          'uid': SupabaseConfig.client.auth.currentUser?.id,
+          'creado_en': sesion['creado_en']?.toString(),
+          'qr': codigo,
+        }),
+      );
+    } catch (e) {
+      debugPrint('No se pudo guardar la sesión local: $e');
+    }
+  }
+
+  Future<void> _borrarSesionLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_claveSesionLocal);
+    } catch (e) {
+      debugPrint('No se pudo borrar la sesión local: $e');
+    }
+  }
+
+  /// Si el estudiante ya escaneó el QR de la clase que sigue activa,
+  /// retoma el monitoreo y el temporizador sin pedir un nuevo escaneo.
+  Future<void> _restaurarSesion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? guardado = prefs.getString(_claveSesionLocal);
+      if (guardado == null) return;
+
+      final Map<String, dynamic> datos =
+          jsonDecode(guardado) as Map<String, dynamic>;
+
+      // Debe ser el mismo estudiante que tiene la sesión iniciada
+      if (datos['uid'] != SupabaseConfig.client.auth.currentUser?.id) {
+        await _borrarSesionLocal();
+        return;
+      }
+
+      final Map<String, dynamic>? sesion = await _consultarSesionActiva();
+
+      // Debe ser la MISMA clase (mismo inicio) y todavía con tiempo
+      final bool mismaClase = sesion != null &&
+          sesion['creado_en']?.toString() == datos['creado_en'];
+      if (!mismaClase || _segundosRestantesDe(sesion) <= 0) {
+        await _borrarSesionLocal();
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _sesionIniciada = true;
+        qrDetectado = datos['qr']?.toString();
+      });
+      _iniciarModoEnfoque(sesion);
+      _registrarAlerta('reabrio_app');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Clase en curso retomada. El docente fue notificado.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      debugPrint('No se pudo restaurar la sesión: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _restaurandoSesion = false;
+        });
+      }
+    }
   }
 
   // ============================================================
@@ -89,29 +182,32 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     }
   }
 
-  /// Pide el permiso de uso antes de iniciar la clase.
-  /// Devuelve true si se puede continuar con el escaneo.
+  /// El permiso de uso es OBLIGATORIO para iniciar la clase.
+  /// Devuelve true solo si el permiso ya está concedido.
   Future<bool> _asegurarPermisoUso() async {
     if (await _tienePermisoUso()) return true;
     if (!mounted) return false;
 
-    final bool? continuar = await showDialog<bool>(
+    await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('Permiso necesario'),
+        title: const Text('Permiso obligatorio'),
         content: const Text(
-          'Para el monitoreo de la clase, activa "Acceso a datos de uso" '
-          'para esta app en los ajustes del teléfono.\n\n'
-          'Luego vuelve aquí y escanea el código QR.',
+          'Para participar en la clase debes activar '
+          '"Acceso a datos de uso" para esta app.\n\n'
+          '1. Pulsa "Abrir ajustes".\n'
+          '2. Busca estudiante_app y activa el permiso.\n'
+          '3. Vuelve aquí y pulsa "Escanear Código QR".',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Continuar sin permiso'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(dialogContext, false);
+              Navigator.pop(dialogContext);
               try {
                 await _usoChannel.invokeMethod('abrirAjustesUso');
               } catch (e) {
@@ -123,7 +219,9 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         ],
       ),
     );
-    return continuar ?? false;
+    // Aunque haya abierto los ajustes, no se escanea hasta que vuelva
+    // y el permiso esté realmente activado (se verifica en el próximo intento).
+    return false;
   }
 
   Future<String> _obtenerAppDestino() async {
@@ -139,20 +237,46 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     return 'Otra App';
   }
 
+  // Paquete de Android -> nombre que verá el docente en el panel.
+  // El ORDEN importa: los más específicos primero (p. ej. Messenger antes que Facebook).
+  static const List<MapEntry<List<String>, String>> _catalogoApps = [
+    MapEntry(['whatsapp'], 'WhatsApp'),
+    MapEntry(['instagram.barcelona'], 'Threads'),
+    MapEntry(['instagram'], 'Instagram'),
+    MapEntry(['musically', 'tiktok', 'ugc.trill'], 'TikTok'),
+    MapEntry(['facebook.orca', 'messenger'], 'Messenger'),
+    MapEntry(['facebook', 'katana'], 'Facebook'),
+    MapEntry(['youtube'], 'YouTube'),
+    MapEntry(['telegram'], 'Telegram'),
+    MapEntry(['twitter', 'com.x.android'], 'X'),
+    MapEntry(['snapchat'], 'Snapchat'),
+    MapEntry(['spotify'], 'Spotify'),
+    MapEntry(['netflix'], 'Netflix'),
+    MapEntry(['discord'], 'Discord'),
+    MapEntry(['twitch'], 'Twitch'),
+    MapEntry(['reddit'], 'Reddit'),
+    MapEntry(['pinterest'], 'Pinterest'),
+    MapEntry(['android.chrome', 'chrome'], 'Chrome'),
+    MapEntry(['firefox', 'mozilla'], 'Firefox'),
+    MapEntry(['android.gm'], 'Gmail'),
+    MapEntry(['openai', 'chatgpt'], 'ChatGPT'),
+    MapEntry(['android.apps.bard', 'gemini'], 'Gemini'),
+    MapEntry([
+      'supercell', 'brawlstars', 'clashofclans', 'clashroyale',
+      'freefire', 'garena', 'roblox', 'pubg', 'tencent.ig',
+      'mobile.legends', 'mojang', 'minecraft', 'activision',
+      'callofduty', 'mihoyo', 'hoyoverse', 'king.candycrush', 'epicgames',
+    ], 'Juegos'),
+    MapEntry(['camera'], 'Cámara'),
+    MapEntry(['gallery', 'photos'], 'Galería'),
+    MapEntry(['android.settings', 'systemsettings'], 'Ajustes'),
+    MapEntry(['launcher', '.home'], 'Pantalla de inicio'),
+  ];
+
   String _nombreDeApp(String paquete) {
     final String pkg = paquete.toLowerCase();
-    if (pkg.contains('whatsapp')) return 'WhatsApp';
-    if (pkg.contains('instagram')) return 'Instagram';
-    if (pkg.contains('musically') || pkg.contains('tiktok')) return 'TikTok';
-    if (pkg.contains('facebook') || pkg.contains('katana')) return 'Facebook';
-    if (pkg.contains('youtube')) return 'YouTube';
-    if (pkg.contains('brawlstars') ||
-        pkg.contains('clashofclans') ||
-        pkg.contains('freefire')) {
-      return 'Juegos';
-    }
-    if (pkg.contains('launcher') || pkg.contains('.home')) {
-      return 'Pantalla de inicio';
+    for (final MapEntry<List<String>, String> app in _catalogoApps) {
+      if (app.key.any(pkg.contains)) return app.value;
     }
     return 'Otra App';
   }
@@ -236,6 +360,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       setState(() {
         _sesionIniciada = false;
       });
+      _borrarSesionLocal();
     }
   }
 
@@ -254,6 +379,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         setState(() {
           _sesionIniciada = false;
         });
+        _borrarSesionLocal();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -405,6 +531,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           setState(() {
             _sesionIniciada = false;
           });
+          _borrarSesionLocal();
         }
       }
 
@@ -523,7 +650,10 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         _sesionIniciada = true;
       });
 
-      // 3. Iniciar monitoreo y temporizador
+      // 3. Recordar la clase en el celular (por si cierra y reabre la app)
+      await _guardarSesionLocal(sesion, codigo);
+
+      // 4. Iniciar monitoreo y temporizador
       await _registrarAlerta('ingreso');
       if (!mounted) return;
       _iniciarModoEnfoque(sesion);
@@ -654,6 +784,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar Sesión',
             onPressed: () async {
+              await _borrarSesionLocal();
               await SupabaseConfig.client.auth.signOut();
               if (context.mounted) {
                 Navigator.pushReplacement(
@@ -828,7 +959,9 @@ class _EstudianteScreenState extends State<EstudianteScreen>
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          onPressed: (_guardandoAsistencia || _sesionIniciada)
+                          onPressed: (_guardandoAsistencia ||
+                                  _sesionIniciada ||
+                                  _restaurandoSesion)
                               ? null
                               : _abrirEscanerQR,
                           icon: Icon(

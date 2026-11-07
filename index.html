@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Regulador - Dashboard Docente</title>
+  <link rel="icon" type="image/svg+xml" href="assets/branding/logo.svg">
   <!-- Chart.js para analítica -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Supabase JS -->
@@ -335,6 +336,50 @@
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
 
+    /* LOGOS DE APPS */
+    .app-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .app-logo-letra {
+      border-radius: 50%;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .app-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid #ef9a9a;
+      border-radius: 999px;
+      padding: 2px 10px 2px 4px;
+      margin-left: 4px;
+    }
+
+    /* RANKING DE APPS (ANALÍTICA) */
+    .apps-ranking { display: flex; flex-direction: column; gap: 12px; }
+    .app-fila {
+      display: grid;
+      grid-template-columns: 28px 130px 1fr 44px;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+    }
+    .app-fila .app-logo { width: 26px; height: 26px; font-size: 18px; }
+    .app-barra-fondo { background: #f1f5f9; border-radius: 6px; height: 14px; overflow: hidden; }
+    .app-barra { height: 100%; border-radius: 6px; }
+    .app-cantidad { text-align: right; font-weight: 700; }
+    @media (max-width: 600px) {
+      .app-fila { grid-template-columns: 26px 90px 1fr 36px; font-size: 13px; }
+    }
+
     /* TARJETA DEL TEMPORIZADOR SINO */
     .timer-card {
       margin-top: 25px;
@@ -406,7 +451,8 @@
   <!-- VISTA 1: LOGIN DOCENTE -->
   <div id="login-view">
     <div class="login-card">
-      <h2>🎓 Acceso Docente</h2>
+      <img src="assets/branding/logo.svg" alt="Logo" width="72" height="72" style="display:block;margin:0 auto 12px;">
+      <h2>Acceso Docente</h2>
       <p>Ingresa tus credenciales de Supabase</p>
       <form id="login-form" onsubmit="iniciarSesionDocente(event)">
         <div class="form-group">
@@ -428,7 +474,8 @@
     <!-- HEADER -->
     <header class="header">
       <div class="brand-title">
-        <span>🎓 Sistema Regulador</span>
+        <img src="assets/branding/logo.svg" alt="Logo" width="32" height="32">
+        <span>Sistema Regulador</span>
         <span class="course-badge" id="header-curso-display">TESIS 2 - Aula E -201</span>
       </div>
       <div class="user-info">
@@ -585,6 +632,12 @@
           <div class="card-title">Tendencias de Distracción (Datos Reales de Supabase)</div>
           <div style="max-width: 500px; margin: 0 auto;">
             <canvas id="chartAnalitica"></canvas>
+          </div>
+        </div>
+        <div class="card" style="margin-top: 20px;">
+          <div class="card-title">Apps a las que salieron los estudiantes</div>
+          <div id="apps-ranking" class="apps-ranking">
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin salidas registradas.</div>
           </div>
         </div>
       </div>
@@ -821,7 +874,10 @@
     // Mapeo del último estado e historial por estudiante
     const alumnosMap = {};
 
-    registros.forEach(item => {
+    // Los registros llegan del más reciente al más antiguo; se recorren al revés
+    // para que el "estado actual" de cada estudiante sea el de su ÚLTIMO evento.
+    [...registros].reverse().forEach(registro => {
+      const item = { ...registro, evento: tipoEvento(registro.evento) };
       const nombre = item.estudiante_nombre || 'Estudiante';
       
       if (!alumnosMap[nombre]) {
@@ -845,7 +901,7 @@
       } else if (['desbloqueo', 'vio_notificaciones'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'yellow';
         alumnosMap[nombre].detalle = item.evento === 'desbloqueo' ? 'Desbloqueó cel' : 'Vio notificaciones';
-      } else if (['regreso', 'ingreso'].includes(item.evento)) {
+      } else if (['regreso', 'ingreso', 'reabrio_app'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'green';
         alumnosMap[nombre].detalle = 'Activo / Enfoque';
       }
@@ -959,18 +1015,100 @@
     } catch (_) { return isoString; }
   }
 
+  // La app envía algunos eventos con detalle, p. ej. "salio_de_app:WhatsApp".
+  // tipoEvento() devuelve solo el tipo ("salio_de_app") y detalleEvento() el detalle ("WhatsApp").
+  function tipoEvento(evento) {
+    return (evento || '').split(':')[0];
+  }
+
+  function detalleEvento(evento) {
+    const partes = (evento || '').split(':');
+    return partes.length > 1 ? partes.slice(1).join(':') : '';
+  }
+
+  // Evita que un texto guardado en la base de datos se interprete como HTML.
+  function escaparHtml(texto) {
+    return String(texto ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // Apps que reconoce la app del estudiante (mismos nombres que en Flutter).
+  // slug = nombre del logo en Simple Icons (https://simpleicons.org); emoji = categorías genéricas.
+  const CATALOGO_APPS = {
+    'WhatsApp':           { slug: 'whatsapp',        color: '25D366' },
+    'Instagram':          { slug: 'instagram',       color: 'E4405F' },
+    'Threads':            { slug: 'threads',         color: '000000' },
+    'TikTok':             { slug: 'tiktok',          color: '000000' },
+    'Messenger':          { slug: 'messenger',       color: '00B2FF' },
+    'Facebook':           { slug: 'facebook',        color: '0866FF' },
+    'YouTube':            { slug: 'youtube',         color: 'FF0000' },
+    'Telegram':           { slug: 'telegram',        color: '26A5E4' },
+    'X':                  { slug: 'x',               color: '000000' },
+    'Snapchat':           { slug: 'snapchat',        color: 'F7C600' },
+    'Spotify':            { slug: 'spotify',         color: '1DB954' },
+    'Netflix':            { slug: 'netflix',         color: 'E50914' },
+    'Discord':            { slug: 'discord',         color: '5865F2' },
+    'Twitch':             { slug: 'twitch',          color: '9146FF' },
+    'Reddit':             { slug: 'reddit',          color: 'FF4500' },
+    'Pinterest':          { slug: 'pinterest',       color: 'BD081C' },
+    'Chrome':             { slug: 'googlechrome',    color: '4285F4' },
+    'Firefox':            { slug: 'firefoxbrowser',  color: 'FF7139' },
+    'Gmail':              { slug: 'gmail',           color: 'EA4335' },
+    'ChatGPT':            { emoji: '🤖', color: '10A37F' },
+    'Gemini':             { slug: 'googlegemini',    color: '8E75B2' },
+    'Juegos':             { emoji: '🎮', color: '8E44AD' },
+    'Cámara':             { emoji: '📷', color: '607D8B' },
+    'Galería':            { emoji: '🖼️', color: '607D8B' },
+    'Ajustes':            { emoji: '⚙️', color: '607D8B' },
+    'Pantalla de inicio': { emoji: '🏠', color: '607D8B' },
+    'Otra App':           { emoji: '📱', color: '95A5A6' },
+  };
+
+  function infoApp(nombre) {
+    return CATALOGO_APPS[nombre] || CATALOGO_APPS['Otra App'];
+  }
+
+  // Si el logo no carga (sin internet o no existe), se muestra un círculo con la inicial.
+  function logoFallido(img) {
+    const span = document.createElement('span');
+    span.className = 'app-logo app-logo-letra';
+    span.style.background = '#' + img.dataset.color;
+    span.textContent = img.dataset.inicial;
+    img.replaceWith(span);
+  }
+
+  function logoApp(nombre) {
+    const app = infoApp(nombre);
+    if (app.emoji) return `<span class="app-logo">${app.emoji}</span>`;
+    const inicial = escaparHtml((nombre || '?').charAt(0).toUpperCase());
+    return `<img class="app-logo" src="https://cdn.simpleicons.org/${app.slug}/${app.color}" ` +
+      `alt="${escaparHtml(nombre)}" data-color="${app.color}" data-inicial="${inicial}" ` +
+      `onerror="logoFallido(this)">`;
+  }
+
   function buildEventCard(alerta) {
-    const { evento, estudiante_nombre, fecha_hora } = alerta;
+    const { evento, fecha_hora } = alerta;
+    const estudiante_nombre = escaparHtml(alerta.estudiante_nombre);
     const hora = formatearHora(fecha_hora);
+    const detalle = detalleEvento(evento);
     let clase = 'event-green';
     let icono = '✔️';
     let mensaje = '';
 
-    switch (evento) {
+    switch (tipoEvento(evento)) {
       case 'salio_de_app':
-        mensaje = `${estudiante_nombre} salió de la aplicación o cambió de pestaña.`;
+        mensaje = detalle
+          ? `${estudiante_nombre} salió de la aplicación hacia: ` +
+            `<span class="app-chip">${logoApp(detalle)}${escaparHtml(detalle)}</span>`
+          : `${estudiante_nombre} salió de la aplicación o cambió de pestaña.`;
         clase = 'event-red';
         icono = '⚠';
+        break;
+      case 'reabrio_app':
+        mensaje = `${estudiante_nombre} cerró la app y la volvió a abrir.`;
+        clase = 'event-orange';
+        icono = '🔄';
         break;
       case 'pantalla_bloqueada':
         mensaje = `${estudiante_nombre} bloqueó la pantalla.`;
@@ -998,7 +1136,7 @@
         icono = '📱';
         break;
       default:
-        mensaje = `${estudiante_nombre}: ${evento}`;
+        mensaje = `${estudiante_nombre}: ${escaparHtml(evento)}`;
     }
 
     return `<div class="event-card ${clase}"><span>${icono}</span><span>[${hora}] ${mensaje}</span></div>`;
@@ -1035,18 +1173,29 @@
       return;
     }
 
-    // Categorización de eventos registrados
+    // Categorización de eventos registrados.
+    // Los eventos positivos (ingresó, volvió, reabrió) NO son distracciones y no se cuentan.
+    const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'reabrio_app'];
     let salioApp = 0;
     let bloqueo = 0;
     let notificaciones = 0;
     let otros = 0;
+    const salidasPorApp = {};
 
     alertas.forEach(a => {
-      if (a.evento === 'salio_de_app') salioApp++;
-      else if (a.evento === 'pantalla_bloqueada') bloqueo++;
-      else if (a.evento === 'vio_notificaciones' || a.evento === 'desbloqueo') notificaciones++;
+      const tipo = tipoEvento(a.evento);
+      if (EVENTOS_POSITIVOS.includes(tipo)) return;
+      if (tipo === 'salio_de_app') {
+        salioApp++;
+        const app = detalleEvento(a.evento) || 'Otra App';
+        salidasPorApp[app] = (salidasPorApp[app] || 0) + 1;
+      }
+      else if (tipo === 'pantalla_bloqueada') bloqueo++;
+      else if (tipo === 'vio_notificaciones' || tipo === 'desbloqueo') notificaciones++;
       else otros++;
     });
+
+    renderRankingApps(salidasPorApp);
 
     const total = salioApp + bloqueo + notificaciones + otros;
 
@@ -1082,6 +1231,28 @@
         }
       }
     });
+  }
+
+  // Ranking de apps a las que salieron los estudiantes, con su logo.
+  function renderRankingApps(salidasPorApp) {
+    const contenedor = document.getElementById('apps-ranking');
+    const filas = Object.entries(salidasPorApp).sort((a, b) => b[1] - a[1]);
+
+    if (filas.length === 0) {
+      contenedor.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin salidas registradas.</div>';
+      return;
+    }
+
+    const maximo = filas[0][1];
+    contenedor.innerHTML = filas.map(([app, cantidad]) => {
+      const ancho = Math.max(4, Math.round((cantidad / maximo) * 100));
+      return `<div class="app-fila">
+        ${logoApp(app)}
+        <span>${escaparHtml(app)}</span>
+        <div class="app-barra-fondo"><div class="app-barra" style="width:${ancho}%; background:#${infoApp(app).color}"></div></div>
+        <span class="app-cantidad">${cantidad}</span>
+      </div>`;
+    }).join('');
   }
 
   verificarSesionExistente();
