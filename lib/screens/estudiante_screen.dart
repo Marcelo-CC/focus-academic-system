@@ -76,6 +76,12 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   Timer? _timerNotificacion;
   Timer? _timerDesbloqueo;
 
+  // Aviso emergente "Tienes 10 segundos para volver a la clase".
+  // Se muestra al salir de la app o al desbloquear entrando a otra app.
+  static const int _segundosParaVolver = 10;
+  bool _avisoSalidaPendiente = false;
+  Timer? _timerAvisoSalida;
+
   // "creado_en" de la clase escaneada. Si el docente la termina o inicia
   // otra, deja de coincidir y la clase se finaliza también en el celular.
   String? _creadoEnSesion;
@@ -136,7 +142,35 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _timerVigilancia?.cancel();
     _timerNotificacion?.cancel();
     _timerDesbloqueo?.cancel();
+    _cancelarAvisoSalida();
     _detenerServicioMonitoreo();
+  }
+
+  // ============================================================
+  // AVISO "TIENES 10 SEGUNDOS PARA VOLVER"
+  // ============================================================
+  void _mostrarAvisoSalida() {
+    _avisoSalidaPendiente = false;
+    _usoChannel
+        .invokeMethod('mostrarAvisoSalida', {'segundos': _segundosParaVolver})
+        .catchError((Object e) => debugPrint('No se pudo mostrar el aviso: $e'));
+
+    _timerAvisoSalida?.cancel();
+    _timerAvisoSalida = Timer(const Duration(seconds: _segundosParaVolver), () {
+      if (!_sesionIniciada || _appEnPrimerPlano) return;
+      _usoChannel
+          .invokeMethod('avisoTiempoAgotado')
+          .catchError((Object e) => debugPrint('No se pudo actualizar el aviso: $e'));
+    });
+  }
+
+  void _cancelarAvisoSalida() {
+    _avisoSalidaPendiente = false;
+    _timerAvisoSalida?.cancel();
+    _timerAvisoSalida = null;
+    _usoChannel
+        .invokeMethod('cancelarAvisoSalida')
+        .catchError((Object e) => debugPrint('No se pudo quitar el aviso: $e'));
   }
 
   // ============================================================
@@ -629,6 +663,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
             DateTime.now().difference(inicio) > const Duration(seconds: 3)) {
           _salidaReportada = true;
           _registrarAlerta('salio_de_app:Otra App');
+          if (_avisoSalidaPendiente) _mostrarAvisoSalida();
         }
         return;
       }
@@ -647,6 +682,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       } else {
         _registrarAlerta('cambio_app:$nombre');
       }
+      if (_avisoSalidaPendiente) _mostrarAvisoSalida();
     } catch (e) {
       debugPrint('Error consultando la app en primer plano: $e');
     } finally {
@@ -667,6 +703,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           _posibleNotificacion = false;
           _desbloqueoRegistrado = false;
           _timerNotificacion?.cancel();
+          // Bloquear la pantalla no es "salir de la app": sin aviso de 10 s
+          _avisoSalidaPendiente = false;
           // Al desbloquear se vuelve a informar la app en la que aparezca
           _paqueteReportado = null;
 
@@ -692,6 +730,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
               _desbloqueoRegistrado = true;
               _registrarAlerta('desbloqueo');
             }
+            // Al detectar la app a la que entró, se le avisa que vuelva
+            _avisoSalidaPendiente = true;
             _inicioFuera = DateTime.now();
             _iniciarVigilancia();
             _vigilar();
@@ -732,7 +772,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       _timerNotificacion?.cancel();
 
       // Empieza a vigilar a qué apps va. Si en realidad bloqueó la pantalla,
-      // el evento "pantalla_bloqueada" pausa la vigilancia.
+      // el evento "pantalla_bloqueada" pausa la vigilancia (y no hay aviso).
+      _avisoSalidaPendiente = true;
       _inicioFuera = DateTime.now();
       _iniciarVigilancia();
     } else if (state == AppLifecycleState.resumed) {
@@ -751,6 +792,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
       _timerNotificacion?.cancel();
       _timerDesbloqueo?.cancel();
+      _cancelarAvisoSalida();
       _detenerVigilancia();
       _desbloqueoRegistrado = false;
 

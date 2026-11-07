@@ -1,6 +1,10 @@
 package com.example.estudiante_app
 
 import android.app.AppOpsManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
@@ -87,11 +91,95 @@ class MainActivity : FlutterActivity() {
                 }
                 "detenerMonitoreo" -> {
                     MonitoreoService.detener(this)
+                    cancelarAvisoSalida()
+                    result.success(null)
+                }
+                "mostrarAvisoSalida" -> {
+                    val segundos = call.argument<Int>("segundos") ?: 10
+                    mostrarAvisoSalida(segundos)
+                    result.success(null)
+                }
+                "avisoTiempoAgotado" -> {
+                    avisoTiempoAgotado()
+                    result.success(null)
+                }
+                "cancelarAvisoSalida" -> {
+                    cancelarAvisoSalida()
                     result.success(null)
                 }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    // ------------------------------------------------------------
+    // Aviso emergente "Tienes 10 segundos para volver a la clase"
+    // ------------------------------------------------------------
+    private val CANAL_AVISO = "aviso_salida"
+    private val ID_AVISO = 2001
+
+    private fun notificationManager(): NotificationManager {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            manager.getNotificationChannel(CANAL_AVISO) == null
+        ) {
+            // Importancia ALTA: aparece como aviso emergente arriba de la pantalla
+            val canal = NotificationChannel(
+                CANAL_AVISO,
+                "Avisos de salida de la clase",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Avisa cuando sales de la app durante la clase"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(canal)
+        }
+        return manager
+    }
+
+    private fun constructorAviso(): Notification.Builder {
+        val abrirApp = PendingIntent.getActivity(
+            this,
+            1,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CANAL_AVISO)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH)
+        }
+        return builder
+            .setSmallIcon(R.drawable.ic_stat_monitoreo)
+            .setContentIntent(abrirApp)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_REMINDER)
+    }
+
+    private fun mostrarAvisoSalida(segundos: Int) {
+        val notificacion = constructorAviso()
+            .setContentTitle("⚠ Saliste de la clase")
+            .setContentText("Tienes $segundos segundos para volver a la app.")
+            // Cuenta regresiva visible en la notificación
+            .setWhen(System.currentTimeMillis() + segundos * 1000L)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .build()
+        notificationManager().notify(ID_AVISO, notificacion)
+    }
+
+    private fun avisoTiempoAgotado() {
+        val notificacion = constructorAviso()
+            .setContentTitle("Se agotó el tiempo")
+            .setContentText("Tu salida quedó registrada para el docente. Vuelve a la clase.")
+            .build()
+        notificationManager().notify(ID_AVISO, notificacion)
+    }
+
+    private fun cancelarAvisoSalida() {
+        getSystemService(NotificationManager::class.java).cancel(ID_AVISO)
     }
 
     private fun tienePermisoUso(): Boolean {

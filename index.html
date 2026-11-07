@@ -336,6 +336,125 @@
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
 
+    /* BARRA DEL DÍA Y CALENDARIO */
+    .barra-dia {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: var(--card-bg);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+    .barra-dia-titulo { font-weight: 700; font-size: 14px; color: #334155; }
+    .barra-dia-nav { display: flex; align-items: center; gap: 6px; }
+    .barra-dia-espacio { flex: 1; }
+    .btn-dia, .btn-fecha, .btn-limpiar {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #334155;
+      font-family: inherit;
+    }
+    .btn-dia:hover, .btn-fecha:hover { background: #eef2ff; border-color: var(--primary); }
+    .btn-dia:disabled { opacity: 0.4; cursor: default; background: #fff; border-color: #cbd5e1; }
+    .btn-fecha { min-width: 190px; color: var(--primary); }
+    .btn-hoy { color: var(--primary); }
+    .btn-limpiar { color: #b71c1c; border-color: #ef9a9a; background: #fff5f5; }
+    .btn-limpiar:hover { background: #ffebee; }
+    .fecha-contenedor { position: relative; }
+    .calendario {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+      padding: 12px;
+      width: 290px;
+    }
+    .cal-cabecera { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cal-cabecera strong { font-size: 14px; }
+    .cal-cabecera button { border: none; background: none; font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+    .cal-cabecera button:hover:not(:disabled) { background: #eef2ff; }
+    .cal-cabecera button:disabled { opacity: 0.3; cursor: default; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+    .cal-semana { font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 4px 0; }
+    .cal-dia {
+      position: relative;
+      border: none;
+      background: none;
+      border-radius: 8px;
+      padding: 7px 0 9px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      color: #334155;
+    }
+    .cal-dia:hover:not(:disabled) { background: #eef2ff; }
+    .cal-dia:disabled { color: #cbd5e1; cursor: default; }
+    .cal-dia.hoy { font-weight: 800; color: var(--primary); }
+    .cal-dia.seleccionado { background: var(--primary); color: #fff; }
+    .cal-dia.con-registros::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 3px;
+      transform: translateX(-50%);
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--red);
+    }
+    .cal-dia.seleccionado.con-registros::after { background: #fff; }
+    .cal-leyenda { margin-top: 8px; font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .cal-leyenda span { width: 6px; height: 6px; border-radius: 50%; background: var(--red); display: inline-block; }
+
+    /* VENTANA RESTABLECER */
+    .modal-fondo {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal-fondo[hidden] { display: none; }
+    .modal {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    }
+    .modal h3 { margin: 0 0 8px; font-size: 18px; }
+    .modal-texto { font-size: 13px; color: #475569; margin: 0 0 16px; line-height: 1.5; }
+    .modal-check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0 12px; cursor: pointer; }
+    .modal-resumen { font-size: 13px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+    .modal-resumen:empty, .modal-error:empty { display: none; }
+    .modal-error { font-size: 13px; color: #b71c1c; background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+    .modal-acciones { display: flex; justify-content: flex-end; gap: 10px; }
+    .modal-acciones .btn { width: auto; }
+    .btn-secundario { background: #f1f5f9; color: #334155; }
+    .btn-secundario:hover { background: #e2e8f0; }
+    @media (max-width: 600px) {
+      .btn-fecha { min-width: 0; }
+      .barra-dia-espacio { display: none; }
+      .btn-limpiar { width: 100%; }
+    }
+
     /* FILTRO POR ESTUDIANTE */
     .filtro-barra {
       display: flex;
@@ -508,6 +627,22 @@
 
     <main class="main-container">
 
+      <!-- BARRA DEL DÍA (CALENDARIO) Y RESTABLECER: visible en Notas, Analítica y Bitácora -->
+      <div id="barra-dia" class="barra-dia" style="display: none;">
+        <span class="barra-dia-titulo">📅 Registros del día</span>
+        <div class="barra-dia-nav">
+          <button type="button" class="btn-dia" onclick="cambiarDia(-1)" aria-label="Día anterior">◀</button>
+          <div class="fecha-contenedor">
+            <button type="button" id="btn-fecha" class="btn-fecha" onclick="toggleCalendario()" aria-haspopup="true">Hoy</button>
+            <div id="calendario" class="calendario" hidden></div>
+          </div>
+          <button type="button" id="btn-dia-siguiente" class="btn-dia" onclick="cambiarDia(1)" aria-label="Día siguiente">▶</button>
+          <button type="button" class="btn-dia btn-hoy" onclick="irAHoy()">Hoy</button>
+        </div>
+        <span class="barra-dia-espacio"></span>
+        <button type="button" class="btn-limpiar" onclick="abrirModalLimpiar()">🧹 Restablecer registros</button>
+      </div>
+
       <!-- MÓDULO 1: PANEL EN VIVO -->
       <div id="tab-vivo" class="tab-content active">
         <div class="dashboard-grid">
@@ -650,6 +785,7 @@
         </div>
         <div class="card">
           <div class="card-title">Tendencias de Distracción (Datos Reales de Supabase)</div>
+          <div id="analitica-vacia" style="display: none; text-align: center; color: var(--text-muted); padding: 20px;"></div>
           <div style="max-width: 500px; margin: 0 auto;">
             <canvas id="chartAnalitica"></canvas>
           </div>
@@ -680,6 +816,40 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- VENTANA: RESTABLECER REGISTROS -->
+  <div id="modal-limpiar" class="modal-fondo" hidden onclick="if (event.target === this) cerrarModalLimpiar()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-limpiar-titulo">
+      <h3 id="modal-limpiar-titulo">🧹 Restablecer registros</h3>
+      <p class="modal-texto">
+        Borra los eventos de distracción para empezar de nuevo. Se reinician las notas,
+        la analítica y la bitácora. <strong>No se puede deshacer.</strong>
+      </p>
+      <div class="form-group">
+        <label for="limpiar-estudiante">Estudiante</label>
+        <select id="limpiar-estudiante" class="form-control" onchange="actualizarResumenLimpieza()">
+          <option value="">Todos los estudiantes</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="limpiar-periodo">Periodo</label>
+        <select id="limpiar-periodo" class="form-control" onchange="actualizarResumenLimpieza()">
+          <option value="dia">Solo el día seleccionado</option>
+          <option value="todo">Todo el historial</option>
+        </select>
+      </div>
+      <label class="modal-check">
+        <input type="checkbox" id="limpiar-asistencias" onchange="actualizarResumenLimpieza()">
+        Borrar también las asistencias (escaneos del QR)
+      </label>
+      <div id="limpiar-resumen" class="modal-resumen"></div>
+      <div id="limpiar-error" class="modal-error"></div>
+      <div class="modal-acciones">
+        <button type="button" class="btn btn-secundario" onclick="cerrarModalLimpiar()">Cancelar</button>
+        <button type="button" id="btn-confirmar-limpieza" class="btn btn-danger" onclick="confirmarLimpieza()">Borrar registros</button>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -902,6 +1072,10 @@
     document.getElementById(tabId).classList.add('active');
     event.currentTarget.classList.add('active');
 
+    const conBarraDia = ['tab-evaluacion', 'tab-analitica', 'tab-bitacora'].includes(tabId);
+    document.getElementById('barra-dia').style.display = conBarraDia ? 'flex' : 'none';
+    cerrarCalendario();
+
     if (tabId === 'tab-evaluacion') renderGamification();
     if (tabId === 'tab-analitica') renderGrafico();
   }
@@ -966,23 +1140,14 @@
     const containerBitacora = document.getElementById('alertas-container');
     containerBitacora.innerHTML = lista.length
       ? lista.map(buildEventCard).join('')
-      : '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin eventos para este estudiante.</div>';
+      : `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${filtro ? 'Sin eventos de este estudiante' : 'Sin eventos registrados'} el ${escaparHtml(fechaSimple(diaSeleccionado))}.</div>`;
 
     document.getElementById('bitacora-contador').innerText =
       `${lista.length} evento${lista.length === 1 ? '' : 's'}`;
   }
 
-  function procesarModulo1Y5(registros) {
-    if (!registros || registros.length === 0) return;
-
-    // Bitácora de eventos (con filtro por estudiante)
-    ultimosRegistros = registros;
-    const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort();
-    actualizarOpcionesFiltro('filtro-bitacora', nombres);
-    actualizarOpcionesFiltro('filtro-analitica', nombres);
-    renderBitacora();
-
-    // Mapeo del último estado e historial por estudiante
+  // Calcula, por estudiante, su estado actual (último evento) y sus distracciones.
+  function calcularEstudiantes(registros) {
     const alumnosMap = {};
 
     // Los registros llegan del más reciente al más antiguo; se recorren al revés
@@ -1025,14 +1190,19 @@
       }
     });
 
-    estudiantesEstadoGlobal = Object.values(alumnosMap);
-    const total = estudiantesEstadoGlobal.length;
+    return Object.values(alumnosMap);
+  }
+
+  // MÓDULO 1: PANEL EN VIVO (siempre con los registros de HOY)
+  function renderPanelVivo(registros) {
+    const estudiantes = calcularEstudiantes(registros);
+    const total = estudiantes.length;
 
     let greenCount = 0;
     let yellowCount = 0;
     let redCount = 0;
 
-    estudiantesEstadoGlobal.forEach(a => {
+    estudiantes.forEach(a => {
       if (a.estado === 'green') greenCount++;
       if (a.estado === 'yellow') yellowCount++;
       if (a.estado === 'red') redCount++;
@@ -1044,13 +1214,14 @@
     document.getElementById('count-red').innerText = `${redCount} alumnos`;
 
     const porcentaje = total > 0 ? Math.round(((greenCount + (yellowCount * 0.5)) / total) * 100) : 0;
-    
+
     const fillBar = document.getElementById('bar-enfoque');
     fillBar.style.width = `${porcentaje}%`;
     document.getElementById('percentage-text').innerText = `${porcentaje}% ENFOQUE`;
 
     const grid = document.getElementById('students-grid');
-    grid.innerHTML = estudiantesEstadoGlobal.map(est => `
+    grid.innerHTML = total
+      ? estudiantes.map(est => `
       <div class="student-card">
         <div class="status-dot dot-${est.estado}"></div>
         <div class="student-info">
@@ -1058,10 +1229,23 @@
           <div class="student-detail">${escaparHtml(est.detalle)}</div>
         </div>
       </div>
-    `).join('');
+    `).join('')
+      : '<div style="color: var(--text-muted); font-size: 13px; grid-column: 1 / -1;">Aún no hay estudiantes conectados hoy.</div>';
+  }
 
-    // Actualizar Módulo 3 si está visible
+  // MÓDULOS 3, 4 Y 5: datos del DÍA SELECCIONADO en el calendario
+  function renderDatosDia(registros) {
+    ultimosRegistros = registros;
+    const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort();
+    actualizarOpcionesFiltro('filtro-bitacora', nombres);
+    actualizarOpcionesFiltro('filtro-analitica', nombres);
+    renderBitacora();
+
+    estudiantesEstadoGlobal = calcularEstudiantes(registros);
     renderGamification();
+    if (document.getElementById('tab-analitica').classList.contains('active')) {
+      renderGrafico();
+    }
   }
 
   // MÓDULO 3: RENDERING Y CÁLCULO DE GAMIFICACIÓN
@@ -1070,7 +1254,10 @@
     if (!tbody) return;
 
     if (!estudiantesEstadoGlobal || estudiantesEstadoGlobal.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes aún.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes el ${escaparHtml(fechaSimple(diaSeleccionado))}.</td></tr>`;
+      document.getElementById('promedio-aula-val').innerText = '-- / 20';
+      document.getElementById('count-destacados-val').innerText = '0';
+      document.getElementById('count-riesgo-val').innerText = '0';
       return;
     }
 
@@ -1276,40 +1463,347 @@
     return `<div class="event-card ${clase}"><span>${icono}</span><span>[${hora}] ${mensaje}</span></div>`;
   }
 
-  function escucharTiempoReal() {
-    const obtenerAlertas = () => {
-      supabaseClient
-        .from('alertas_inactividad')
-        .select('*')
-        .order('fecha_hora', { ascending: false })
-        .then(({ data }) => {
-          if (data) procesarModulo1Y5(data);
-        });
-    };
+  // =====================================================================
+  // CALENDARIO: DÍA SELECCIONADO
+  // =====================================================================
+  function inicioDelDia(fecha) {
+    const d = new Date(fecha);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
 
+  function mismoDia(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function claveDia(fecha) {
+    return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+  }
+
+  function fechaSimple(fecha) {
+    return fecha.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function textoFecha(fecha) {
+    const hoy = inicioDelDia(new Date());
+    const ayer = new Date(hoy);
+    ayer.setDate(ayer.getDate() - 1);
+    const corta = fecha.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    if (mismoDia(fecha, hoy)) return `Hoy · ${corta}`;
+    if (mismoDia(fecha, ayer)) return `Ayer · ${corta}`;
+    return corta;
+  }
+
+  // Rango [inicio, fin) del día en hora local, convertido a UTC para Supabase.
+  function rangoDia(fecha) {
+    const inicio = inicioDelDia(fecha);
+    const fin = new Date(inicio);
+    fin.setDate(fin.getDate() + 1);
+    return [inicio.toISOString(), fin.toISOString()];
+  }
+
+  let diaSeleccionado = inicioDelDia(new Date());
+  let mesCalendario = new Date(diaSeleccionado.getFullYear(), diaSeleccionado.getMonth(), 1);
+
+  // Supabase devuelve como máximo 1000 filas por consulta: se pide por páginas.
+  async function consultarPaginado(construirConsulta) {
+    const TAM = 1000;
+    let todas = [];
+    for (let desde = 0; ; desde += TAM) {
+      const { data, error } = await construirConsulta().range(desde, desde + TAM - 1);
+      if (error) throw error;
+      todas = todas.concat(data || []);
+      if (!data || data.length < TAM) break;
+    }
+    return todas;
+  }
+
+  function consultarAlertasDelDia(fecha) {
+    const [inicio, fin] = rangoDia(fecha);
+    return consultarPaginado(() => supabaseClient
+      .from('alertas_inactividad')
+      .select('*')
+      .gte('fecha_hora', inicio)
+      .lt('fecha_hora', fin)
+      .order('fecha_hora', { ascending: false }));
+  }
+
+  async function obtenerAlertas() {
+    try {
+      const hoy = inicioDelDia(new Date());
+      const esHoy = mismoDia(diaSeleccionado, hoy);
+      const [registrosHoy, registrosDia] = await Promise.all([
+        consultarAlertasDelDia(hoy),
+        esHoy ? Promise.resolve(null) : consultarAlertasDelDia(diaSeleccionado)
+      ]);
+      renderPanelVivo(registrosHoy);
+      renderDatosDia(esHoy ? registrosHoy : registrosDia);
+    } catch (err) {
+      console.error('Error al cargar los registros:', err);
+    }
+  }
+
+  // Varios eventos seguidos en tiempo real => una sola recarga
+  let recargaPendiente = null;
+  function programarRecarga() {
+    clearTimeout(recargaPendiente);
+    recargaPendiente = setTimeout(() => {
+      obtenerAlertas();
+      if (!document.getElementById('calendario').hidden) renderCalendario();
+    }, 400);
+  }
+
+  function escucharTiempoReal() {
+    actualizarBotonesDia();
     obtenerAlertas();
 
     supabaseClient
       .channel('alertas-realtime-web')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inactividad' }, obtenerAlertas)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inactividad' }, programarRecarga)
       .subscribe();
+  }
+
+  function seleccionarDia(fecha) {
+    diaSeleccionado = inicioDelDia(fecha);
+    actualizarBotonesDia();
+    cerrarCalendario();
+    obtenerAlertas();
+  }
+
+  function cambiarDia(delta) {
+    const nueva = new Date(diaSeleccionado);
+    nueva.setDate(nueva.getDate() + delta);
+    if (nueva > inicioDelDia(new Date())) return; // no hay registros del futuro
+    seleccionarDia(nueva);
+  }
+
+  function irAHoy() {
+    seleccionarDia(new Date());
+  }
+
+  function actualizarBotonesDia() {
+    document.getElementById('btn-fecha').innerText = textoFecha(diaSeleccionado);
+    document.getElementById('btn-dia-siguiente').disabled = mismoDia(diaSeleccionado, new Date());
+  }
+
+  function toggleCalendario() {
+    const cal = document.getElementById('calendario');
+    if (cal.hidden) {
+      mesCalendario = new Date(diaSeleccionado.getFullYear(), diaSeleccionado.getMonth(), 1);
+      cal.hidden = false;
+      renderCalendario();
+    } else {
+      cerrarCalendario();
+    }
+  }
+
+  function cerrarCalendario() {
+    const cal = document.getElementById('calendario');
+    if (cal) cal.hidden = true;
+  }
+
+  function cambiarMes(delta) {
+    mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + delta, 1);
+    renderCalendario();
+  }
+
+  // Días del mes que tienen registros (se marcan con un punto rojo)
+  async function diasConRegistros(mes) {
+    const inicio = new Date(mes.getFullYear(), mes.getMonth(), 1);
+    const fin = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
+    const filas = await consultarPaginado(() => supabaseClient
+      .from('alertas_inactividad')
+      .select('fecha_hora')
+      .gte('fecha_hora', inicio.toISOString())
+      .lt('fecha_hora', fin.toISOString())
+      .order('fecha_hora', { ascending: true }));
+    return new Set(filas.map(f => claveDia(new Date(f.fecha_hora))));
+  }
+
+  async function renderCalendario() {
+    const cal = document.getElementById('calendario');
+    const mes = mesCalendario;
+    const hoy = inicioDelDia(new Date());
+    const esMesActual = mes.getFullYear() === hoy.getFullYear() && mes.getMonth() === hoy.getMonth();
+    const tituloMes = mes.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+    const titulo = tituloMes.charAt(0).toUpperCase() + tituloMes.slice(1);
+
+    const dibujar = (conRegistros) => {
+      const primerDia = new Date(mes.getFullYear(), mes.getMonth(), 1);
+      const diasEnMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate();
+      const huecos = (primerDia.getDay() + 6) % 7; // semana empieza en lunes
+
+      let celdas = ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => `<div class="cal-semana">${d}</div>`).join('');
+      celdas += '<div></div>'.repeat(huecos);
+      for (let n = 1; n <= diasEnMes; n++) {
+        const fecha = new Date(mes.getFullYear(), mes.getMonth(), n);
+        const clases = ['cal-dia'];
+        if (mismoDia(fecha, hoy)) clases.push('hoy');
+        if (mismoDia(fecha, diaSeleccionado)) clases.push('seleccionado');
+        if (conRegistros.has(claveDia(fecha))) clases.push('con-registros');
+        const futuro = fecha > hoy;
+        celdas += `<button type="button" class="${clases.join(' ')}" ${futuro ? 'disabled' : ''} ` +
+          `onclick="seleccionarDia(new Date(${fecha.getFullYear()}, ${fecha.getMonth()}, ${n}))">${n}</button>`;
+      }
+
+      cal.innerHTML = `
+        <div class="cal-cabecera">
+          <button type="button" onclick="cambiarMes(-1)" aria-label="Mes anterior">◀</button>
+          <strong>${escaparHtml(titulo)}</strong>
+          <button type="button" onclick="cambiarMes(1)" aria-label="Mes siguiente" ${esMesActual ? 'disabled' : ''}>▶</button>
+        </div>
+        <div class="cal-grid">${celdas}</div>
+        <div class="cal-leyenda"><span></span> Días con registros</div>`;
+    };
+
+    dibujar(new Set());
+    try {
+      const conRegistros = await diasConRegistros(mes);
+      if (mes === mesCalendario && !cal.hidden) dibujar(conRegistros);
+    } catch (err) {
+      console.error('Error al cargar el calendario:', err);
+    }
+  }
+
+  // Cerrar el calendario al hacer clic fuera de él
+  document.addEventListener('click', (e) => {
+    const contenedor = document.querySelector('.fecha-contenedor');
+    if (contenedor && !contenedor.contains(e.target)) cerrarCalendario();
+  });
+
+  // =====================================================================
+  // RESTABLECER (BORRAR) REGISTROS
+  // =====================================================================
+  function aplicarFiltrosLimpieza(consulta, estudiante, periodo) {
+    if (estudiante) consulta = consulta.eq('estudiante_nombre', estudiante);
+    if (periodo === 'dia') {
+      const [inicio, fin] = rangoDia(diaSeleccionado);
+      consulta = consulta.gte('fecha_hora', inicio).lt('fecha_hora', fin);
+    } else {
+      // Supabase no permite borrar sin filtro: este abarca todo el historial
+      consulta = consulta.gte('fecha_hora', '1970-01-01T00:00:00Z');
+    }
+    return consulta;
+  }
+
+  async function contarRegistros(tabla, estudiante, periodo) {
+    const consulta = aplicarFiltrosLimpieza(
+      supabaseClient.from(tabla).select('fecha_hora', { count: 'exact', head: true }),
+      estudiante, periodo);
+    const { count, error } = await consulta;
+    if (error) throw error;
+    return count || 0;
+  }
+
+  async function abrirModalLimpiar() {
+    cerrarCalendario();
+    document.getElementById('limpiar-error').innerText = '';
+    document.getElementById('limpiar-periodo').options[0].text =
+      `Solo el día seleccionado (${textoFecha(diaSeleccionado)})`;
+
+    // Lista de estudiantes de todo el historial
+    try {
+      const filas = await consultarPaginado(() => supabaseClient
+        .from('alertas_inactividad')
+        .select('estudiante_nombre')
+        .order('estudiante_nombre', { ascending: true }));
+      const nombres = [...new Set(filas.map(f => f.estudiante_nombre).filter(Boolean))].sort();
+      actualizarOpcionesFiltro('limpiar-estudiante', nombres);
+    } catch (err) {
+      console.error('Error al cargar estudiantes:', err);
+    }
+
+    // Por defecto, el estudiante elegido en el filtro de la pestaña actual
+    const filtroActual = document.getElementById('filtro-bitacora').value ||
+      document.getElementById('filtro-analitica').value;
+    const select = document.getElementById('limpiar-estudiante');
+    if (filtroActual && [...select.options].some(o => o.value === filtroActual)) {
+      select.value = filtroActual;
+    }
+
+    document.getElementById('modal-limpiar').hidden = false;
+    actualizarResumenLimpieza();
+  }
+
+  function cerrarModalLimpiar() {
+    document.getElementById('modal-limpiar').hidden = true;
+  }
+
+  async function actualizarResumenLimpieza() {
+    const estudiante = document.getElementById('limpiar-estudiante').value;
+    const periodo = document.getElementById('limpiar-periodo').value;
+    const conAsistencias = document.getElementById('limpiar-asistencias').checked;
+    const resumen = document.getElementById('limpiar-resumen');
+    resumen.innerText = 'Calculando…';
+    try {
+      const alertas = await contarRegistros('alertas_inactividad', estudiante, periodo);
+      let texto = `Se borrarán ${alertas} evento${alertas === 1 ? '' : 's'}`;
+      if (conAsistencias) {
+        const asistencias = await contarRegistros('asistencias', estudiante, periodo);
+        texto += ` y ${asistencias} asistencia${asistencias === 1 ? '' : 's'}`;
+      }
+      texto += ` de ${estudiante ? estudiante : 'todos los estudiantes'}` +
+        (periodo === 'dia' ? ` del ${fechaSimple(diaSeleccionado)}.` : ' (todo el historial).');
+      resumen.innerText = texto;
+    } catch (err) {
+      resumen.innerText = '';
+    }
+  }
+
+  async function confirmarLimpieza() {
+    const estudiante = document.getElementById('limpiar-estudiante').value;
+    const periodo = document.getElementById('limpiar-periodo').value;
+    const conAsistencias = document.getElementById('limpiar-asistencias').checked;
+    const error = document.getElementById('limpiar-error');
+    const btn = document.getElementById('btn-confirmar-limpieza');
+
+    const quien = estudiante ? estudiante : 'TODOS los estudiantes';
+    const cuando = periodo === 'dia' ? `del ${fechaSimple(diaSeleccionado)}` : 'de TODO el historial';
+    if (!confirm(`¿Seguro que quieres borrar los registros de ${quien} ${cuando}?\n\nEsta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    error.innerText = '';
+    btn.disabled = true;
+    btn.innerText = 'Borrando…';
+    try {
+      const tablas = conAsistencias ? ['alertas_inactividad', 'asistencias'] : ['alertas_inactividad'];
+      let esperados = 0;
+      let borrados = 0;
+      for (const tabla of tablas) {
+        esperados += await contarRegistros(tabla, estudiante, periodo);
+        const { count, error: errBorrado } = await aplicarFiltrosLimpieza(
+          supabaseClient.from(tabla).delete({ count: 'exact' }), estudiante, periodo);
+        if (errBorrado) throw errBorrado;
+        borrados += count || 0;
+      }
+
+      // Si había registros pero no se borró ninguno, falta el permiso (SQL 002)
+      if (esperados > 0 && borrados === 0) {
+        error.innerText = 'No tienes permiso para borrar registros. Ejecuta en Supabase el script ' +
+          'supabase/002_docentes_y_limpieza.sql con tu correo de docente.';
+        return;
+      }
+
+      cerrarModalLimpiar();
+      document.getElementById('limpiar-asistencias').checked = false;
+      obtenerAlertas();
+      alert(`Listo: se borraron ${borrados} registro${borrados === 1 ? '' : 's'}.`);
+    } catch (err) {
+      console.error('Error al borrar registros:', err);
+      error.innerText = 'No se pudieron borrar los registros. Inténtalo de nuevo.';
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Borrar registros';
+    }
   }
 
   // MÓDULO 4: RENDERING DINÁMICO DE ANALÍTICA CON SUPABASE
   let chartInstance = null;
   async function renderGrafico() {
-    const { data: todas, error } = await supabaseClient
-      .from('alertas_inactividad')
-      .select('evento, estudiante_nombre');
-
-    if (error || !todas || todas.length === 0) {
-      console.log("Sin registros para procesar analítica");
-      return;
-    }
+    const todas = ultimosRegistros;
 
     // Filtro por estudiante (vacío = todos)
-    const nombres = [...new Set(todas.map(a => a.estudiante_nombre || 'Estudiante'))].sort();
-    actualizarOpcionesFiltro('filtro-analitica', nombres);
     const filtro = document.getElementById('filtro-analitica').value;
     const alertas = filtro
       ? todas.filter(a => (a.estudiante_nombre || 'Estudiante') === filtro)
@@ -1340,6 +1834,11 @@
     renderRankingApps(salidasPorApp);
 
     const total = salioApp + bloqueo + notificaciones + otros;
+    const vacio = document.getElementById('analitica-vacia');
+    vacio.innerText = total === 0
+      ? `Sin distracciones registradas el ${fechaSimple(diaSeleccionado)}${filtro ? ' para este estudiante' : ''}.`
+      : '';
+    vacio.style.display = total === 0 ? 'block' : 'none';
 
     const pctSalio = Math.round((salioApp / total) * 100) || 0;
     const pctBloqueo = Math.round((bloqueo / total) * 100) || 0;
