@@ -1,0 +1,7 @@
+@override
+  State<EstudianteScreen> createState() => _EstudianteScreenState();
+}
+
+class _EstudianteScreenState extends State<EstudianteScreen>
+    with WidgetsBindingObserver {
+  String? qrDetectado;
