@@ -134,6 +134,9 @@ class MonitoreoService : Service() {
 
         val actual = UsoApps.appEnPrimerPlano(this) ?: return
 
+        // La pantalla de bloqueo o la barra del sistema no son "otra app"
+        if (UsoApps.esPantallaDelSistema(actual)) return
+
         if (actual == packageName) {
             reiniciarSalida() // volvió a la app
             return

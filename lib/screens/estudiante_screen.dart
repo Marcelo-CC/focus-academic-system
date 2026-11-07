@@ -79,7 +79,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   // Aviso emergente "Tienes 10 segundos para volver a la clase".
   // Se muestra al salir de la app o al desbloquear entrando a otra app.
   static const int _segundosParaVolver = 10;
-  bool _avisoSalidaPendiente = false;
   Timer? _timerAvisoSalida;
   DateTime? _salidaDesde; // cuándo salió a otra app (inicio de los 10 s)
   bool _faltaRegistrada = false; // ya se registró la falta grave en esta salida
@@ -156,7 +155,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   // REGISTRA la falta para el docente (cuenta como 2 distracciones).
   // ============================================================
   void _mostrarAvisoSalida() {
-    _avisoSalidaPendiente = false;
     _salidaDesde ??= DateTime.now(); // empieza la cuenta de 10 s
     if (_timerAvisoSalida?.isActive ?? false) return; // ya corre la cuenta
 
@@ -180,7 +178,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   }
 
   void _cancelarAvisoSalida() {
-    _avisoSalidaPendiente = false;
     _timerAvisoSalida?.cancel();
     _timerAvisoSalida = null;
     _usoChannel
@@ -453,6 +450,17 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     MapEntry(['launcher', '.home'], 'Pantalla de inicio'),
   ];
 
+  /// Pantalla de bloqueo, barra de notificaciones, etc. (no son apps).
+  static bool _esPantallaDelSistema(String paquete) {
+    final String pkg = paquete.toLowerCase();
+    return pkg == 'android' ||
+        pkg.contains('systemui') ||
+        pkg.contains('keyguard') ||
+        pkg.contains('lockscreen') ||
+        pkg.contains('.aod') ||
+        pkg.contains('aodservice');
+  }
+
   String _nombreDeApp(String paquete) {
     final String pkg = paquete.toLowerCase();
     for (final MapEntry<List<String>, String> app in _catalogoApps) {
@@ -678,7 +686,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
             DateTime.now().difference(inicio) > const Duration(seconds: 3)) {
           _salidaReportada = true;
           _registrarAlerta('salio_de_app:Otra App');
-          if (_avisoSalidaPendiente) _mostrarAvisoSalida();
+          _mostrarAvisoSalida();
         }
         return;
       }
@@ -687,7 +695,14 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       // (p. ej. detrás de la pantalla de bloqueo): no es una salida.
       if (paquete.isEmpty) return;
 
-      if (paquete == _paqueteReportado) return; // sigue en la misma app
+      // La pantalla de bloqueo / barra del sistema no es "otra app"
+      if (_esPantallaDelSistema(paquete)) return;
+
+      if (paquete == _paqueteReportado) {
+        // Sigue en la misma app: asegura que la cuenta de 10 s esté corriendo
+        _mostrarAvisoSalida();
+        return;
+      }
       _paqueteReportado = paquete;
 
       final String nombre = _nombreDeApp(paquete);
@@ -697,7 +712,10 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       } else {
         _registrarAlerta('cambio_app:$nombre');
       }
-      if (_avisoSalidaPendiente) _mostrarAvisoSalida();
+      // Siempre que esté en otra app corre la cuenta de 10 s (si ya corre, no
+      // se reinicia). Antes dependía de un indicador que, al desbloquear,
+      // podía activarse DESPUÉS de detectar la app y la cuenta nunca empezaba.
+      _mostrarAvisoSalida();
     } catch (e) {
       debugPrint('Error consultando la app en primer plano: $e');
     } finally {
@@ -720,7 +738,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           _timerNotificacion?.cancel();
           // Bloquear la pantalla no es "usar otra app": se detiene la cuenta
           // de 10 s (igual que en el servicio nativo)
-          _avisoSalidaPendiente = false;
           _timerAvisoSalida?.cancel();
           _timerAvisoSalida = null;
           _salidaDesde = null;
@@ -750,9 +767,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
               _desbloqueoRegistrado = true;
               _registrarAlerta('desbloqueo');
             }
-            // Al detectar la app a la que entró, se le avisa que vuelva
-            _avisoSalidaPendiente = true;
-            _inicioFuera = DateTime.now();
+              _inicioFuera = DateTime.now();
             _iniciarVigilancia();
             _vigilar();
           });
@@ -793,7 +808,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
       // Empieza a vigilar a qué apps va. Si en realidad bloqueó la pantalla,
       // el evento "pantalla_bloqueada" pausa la vigilancia (y no hay aviso).
-      _avisoSalidaPendiente = true;
       _inicioFuera = DateTime.now();
       _iniciarVigilancia();
     } else if (state == AppLifecycleState.resumed) {

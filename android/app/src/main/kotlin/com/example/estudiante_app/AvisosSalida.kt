@@ -17,6 +17,17 @@ import android.os.Process
  */
 object UsoApps {
 
+    /** Pantalla de bloqueo, barra de notificaciones, etc. (no son apps). */
+    fun esPantallaDelSistema(paquete: String): Boolean {
+        val pkg = paquete.lowercase()
+        return pkg == "android" ||
+            pkg.contains("systemui") ||
+            pkg.contains("keyguard") ||
+            pkg.contains("lockscreen") ||
+            pkg.contains(".aod") ||
+            pkg.contains("aodservice")
+    }
+
     fun tienePermiso(context: Context): Boolean {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         val modo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
