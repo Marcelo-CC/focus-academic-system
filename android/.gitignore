@@ -15,3 +15,4 @@ key.properties
 
 # Archivos generados por Gradle
 /build/
+/.kotlin/

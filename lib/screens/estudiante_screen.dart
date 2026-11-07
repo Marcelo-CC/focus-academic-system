@@ -4,17 +4,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/supabase_config.dart';
+import '../utils/mensajes.dart';
 import 'login_screen.dart';
 
 class EstudianteScreen extends StatefulWidget {
   final String nombreEstudiante;
 
+  /// true si se llega a esta pantalla justo después de iniciar sesión
+  /// (para avisar al docente "volvió a iniciar sesión" en vez de "reabrió la app").
+  final bool desdeLogin;
+
   const EstudianteScreen({
     super.key,
     required this.nombreEstudiante,
+    this.desdeLogin = false,
   });
 
   @override
@@ -31,10 +38,6 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   // Mientras se comprueba si había una clase en curso al abrir la app
   bool _restaurandoSesion = true;
 
-  // Clave en el almacenamiento local del celular donde se recuerda
-  // la clase escaneada, para retomarla si el estudiante cierra la app.
-  static const String _claveSesionLocal = 'sesion_en_curso';
-
   // ============================================================
   // TEMPORIZADOR DEL MODO ENFOQUE
   // ============================================================
@@ -46,13 +49,12 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   String _grupoAula = '';
 
   // ============================================================
-  // CANAL NATIVO Y DETECCIÓN DE APPS
+  // CANALES NATIVOS
   // ============================================================
   static const EventChannel _screenChannel =
       EventChannel('com.example.estudiante_app/screen_events');
 
-  // Canal nativo propio para saber a qué app se fue el estudiante
-  // (reemplaza al paquete app_usage, que ya no es compatible con Gradle moderno)
+  // Canal nativo propio: permiso de uso, app en primer plano y servicio de monitoreo
   static const MethodChannel _usoChannel =
       MethodChannel('com.example.estudiante_app/uso_apps');
 
@@ -63,19 +65,30 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
   StreamSubscription? _screenSubscription;
 
+  // ============================================================
+  // ESTADO DEL MONITOREO
+  // ============================================================
   bool _isScreenLockedOrOff = false;
   bool _estaEnSegundoPlano = false;
   bool _posibleNotificacion = false;
-
   bool _desbloqueoRegistrado = false;
-  bool _salioRegistrado = false;
 
-  Timer? _timerBloqueo;
   Timer? _timerNotificacion;
-  Timer? _timerGracia;
+  Timer? _timerDesbloqueo;
 
-  static const int _segundosGracia = 10;
-  DateTime? _limiteGracia;
+  // "creado_en" de la clase escaneada. Si el docente la termina o inicia
+  // otra, deja de coincidir y la clase se finaliza también en el celular.
+  String? _creadoEnSesion;
+  int _ticksDesdeVerificacion = 0;
+  static const int _verificarClaseCada = 15; // segundos
+
+  // Vigilancia mientras el estudiante está FUERA de la app:
+  // cada segundo se consulta qué app tiene abierta y se registra cada cambio.
+  Timer? _timerVigilancia;
+  bool _consultandoApp = false;
+  String? _paqueteReportado; // última app registrada en esta salida
+  bool _salidaReportada = false; // ya se registró "salió de la app" en esta salida
+  DateTime? _inicioFuera;
 
   final List<Map<String, dynamic>> _alertasPendientes = [];
 
@@ -87,19 +100,64 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _restaurarSesion();
   }
 
+  @override
+  void dispose() {
+    _timerNotificacion?.cancel();
+    _timerDesbloqueo?.cancel();
+    _timerVigilancia?.cancel();
+    _timerEnfoque?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _screenSubscription?.cancel();
+    super.dispose();
+  }
+
   // ============================================================
-  // RETOMAR LA CLASE SI EL ESTUDIANTE CERRÓ Y REABRIÓ LA APP
+  // SERVICIO EN PRIMER PLANO (evita que Android congele la app)
   // ============================================================
+  Future<void> _iniciarServicioMonitoreo() async {
+    try {
+      await _usoChannel.invokeMethod('iniciarMonitoreo');
+    } catch (e) {
+      debugPrint('No se pudo iniciar el servicio de monitoreo: $e');
+    }
+  }
+
+  Future<void> _detenerServicioMonitoreo() async {
+    try {
+      await _usoChannel.invokeMethod('detenerMonitoreo');
+    } catch (e) {
+      debugPrint('No se pudo detener el servicio de monitoreo: $e');
+    }
+  }
+
+  /// Termina el monitoreo de la clase (fin del tiempo o cierre de sesión).
+  void _finalizarMonitoreo() {
+    _timerEnfoque?.cancel();
+    _timerVigilancia?.cancel();
+    _timerNotificacion?.cancel();
+    _timerDesbloqueo?.cancel();
+    _detenerServicioMonitoreo();
+  }
+
+  // ============================================================
+  // RETOMAR LA CLASE SI EL ESTUDIANTE CERRÓ LA APP O LA SESIÓN
+  // ============================================================
+  String? get _claveSesionLocal {
+    final String? uid = SupabaseConfig.client.auth.currentUser?.id;
+    return uid == null ? null : 'sesion_en_curso_$uid';
+  }
+
   Future<void> _guardarSesionLocal(
     Map<String, dynamic> sesion,
     String codigo,
   ) async {
+    final String? clave = _claveSesionLocal;
+    if (clave == null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        _claveSesionLocal,
+        clave,
         jsonEncode({
-          'uid': SupabaseConfig.client.auth.currentUser?.id,
           'creado_en': sesion['creado_en']?.toString(),
           'qr': codigo,
         }),
@@ -110,9 +168,11 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   }
 
   Future<void> _borrarSesionLocal() async {
+    final String? clave = _claveSesionLocal;
+    if (clave == null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_claveSesionLocal);
+      await prefs.remove(clave);
     } catch (e) {
       debugPrint('No se pudo borrar la sesión local: $e');
     }
@@ -122,42 +182,66 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   /// retoma el monitoreo y el temporizador sin pedir un nuevo escaneo.
   Future<void> _restaurarSesion() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? guardado = prefs.getString(_claveSesionLocal);
-      if (guardado == null) return;
+      final String? clave = _claveSesionLocal;
+      final String? uid = SupabaseConfig.client.auth.currentUser?.id;
+      if (clave == null || uid == null) return;
 
-      final Map<String, dynamic> datos =
-          jsonDecode(guardado) as Map<String, dynamic>;
-
-      // Debe ser el mismo estudiante que tiene la sesión iniciada
-      if (datos['uid'] != SupabaseConfig.client.auth.currentUser?.id) {
-        await _borrarSesionLocal();
-        return;
-      }
-
+      // Debe haber una clase activa y con tiempo
       final Map<String, dynamic>? sesion = await _consultarSesionActiva();
-
-      // Debe ser la MISMA clase (mismo inicio) y todavía con tiempo
-      final bool mismaClase = sesion != null &&
-          sesion['creado_en']?.toString() == datos['creado_en'];
-      if (!mismaClase || _segundosRestantesDe(sesion) <= 0) {
+      if (sesion == null || _segundosRestantesDe(sesion) <= 0) {
         await _borrarSesionLocal();
         return;
       }
+      final String? creadoEn = sesion['creado_en']?.toString();
+      String? qr;
 
-      if (!mounted) return;
+      // 1. ¿Este celular recuerda haber escaneado ESTA clase?
+      final prefs = await SharedPreferences.getInstance();
+      final String? guardado = prefs.getString(clave);
+      if (guardado != null) {
+        final Map<String, dynamic> datos =
+            jsonDecode(guardado) as Map<String, dynamic>;
+        if (datos['creado_en'] == creadoEn) {
+          qr = datos['qr']?.toString() ?? '';
+        } else {
+          await _borrarSesionLocal();
+        }
+      }
+
+      // 2. Si no, ¿ya registró asistencia en esta clase?
+      //    (app reinstalada o sesión iniciada en otro celular)
+      if (qr == null) {
+        final DateTime? inicio = _parsearFechaSupabase(creadoEn);
+        if (inicio != null) {
+          final Map<String, dynamic>? fila = await SupabaseConfig.client
+              .from('asistencias')
+              .select('qr_contenido')
+              .eq('estudiante_id', uid)
+              .gte('fecha_hora', inicio.toUtc().toIso8601String())
+              .order('fecha_hora', ascending: false)
+              .limit(1)
+              .maybeSingle();
+          if (fila != null) {
+            qr = fila['qr_contenido']?.toString() ?? '';
+            await _guardarSesionLocal(sesion, qr);
+          }
+        }
+      }
+
+      if (qr == null || !mounted) return;
+      final String qrRecuperado = qr;
       setState(() {
         _sesionIniciada = true;
-        qrDetectado = datos['qr']?.toString();
+        qrDetectado = qrRecuperado.isEmpty ? null : qrRecuperado;
       });
       _iniciarModoEnfoque(sesion);
-      _registrarAlerta('reabrio_app');
+      _iniciarServicioMonitoreo();
+      _registrarAlerta(widget.desdeLogin ? 'reingreso_sesion' : 'reabrio_app');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Clase en curso retomada. El docente fue notificado.'),
-          backgroundColor: Colors.orange,
-        ),
+      mostrarAviso(
+        context,
+        'Clase en curso retomada. El docente fue notificado.',
+        tipo: TipoAviso.advertencia,
       );
     } catch (e) {
       debugPrint('No se pudo restaurar la sesión: $e');
@@ -171,7 +255,53 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   }
 
   // ============================================================
-  // PERMISO DE "ACCESO A DATOS DE USO" Y APP DE DESTINO
+  // CERRAR SESIÓN
+  // ============================================================
+  Future<void> _cerrarSesion() async {
+    if (_sesionIniciada) {
+      final bool? confirmar = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialogContext) => AlertDialog(
+          title: const Text('¿Cerrar sesión?'),
+          content: const Text(
+            'Estás en plena clase. Si cierras sesión, el docente será '
+            'notificado. Cuando vuelvas a entrar, el tiempo seguirá corriendo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Seguir en clase'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Cerrar sesión'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+
+      // Se registra ANTES de cerrar sesión (después ya no hay permiso para escribir).
+      // La clase guardada en el celular NO se borra: al volver a entrar se retoma.
+      await _registrarAlerta('cerro_sesion');
+      _sesionIniciada = false;
+    }
+
+    _finalizarMonitoreo();
+    await SupabaseConfig.client.auth.signOut();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
+  // ============================================================
+  // PERMISOS
   // ============================================================
   Future<bool> _tienePermisoUso() async {
     try {
@@ -224,20 +354,21 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     return false;
   }
 
-  Future<String> _obtenerAppDestino() async {
+  /// Permiso para mostrar la notificación "Clase en curso" (Android 13+).
+  /// No es obligatorio: el monitoreo funciona igual sin él.
+  Future<void> _pedirPermisoNotificaciones() async {
     try {
-      final String? paquete = await _usoChannel.invokeMethod<String>(
-        'ultimaAppEnPrimerPlano',
-        {'segundos': 30},
-      );
-      if (paquete != null) return _nombreDeApp(paquete);
+      if (await Permission.notification.isDenied) {
+        await Permission.notification.request();
+      }
     } catch (e) {
-      debugPrint('Error leyendo app en primer plano: $e');
+      debugPrint('No se pudo pedir el permiso de notificaciones: $e');
     }
-    return 'Otra App';
   }
 
-  // Paquete de Android -> nombre que verá el docente en el panel.
+  // ============================================================
+  // NOMBRE DE LA APP A PARTIR DEL PAQUETE DE ANDROID
+  // ============================================================
   // El ORDEN importa: los más específicos primero (p. ej. Messenger antes que Facebook).
   static const List<MapEntry<List<String>, String>> _catalogoApps = [
     MapEntry(['whatsapp'], 'WhatsApp'),
@@ -352,15 +483,13 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       _duracionTotalSegundos = duracionTotal;
       _segundosRestantes = restantes;
       _horaFinEnfoque = DateTime.now().add(Duration(seconds: restantes));
+      _creadoEnSesion = sesion['creado_en']?.toString();
     });
 
     if (restantes > 0) {
       _iniciarCronometroEnfoque();
     } else {
-      setState(() {
-        _sesionIniciada = false;
-      });
-      _borrarSesionLocal();
+      _terminarClase(mostrarMensaje: false);
     }
   }
 
@@ -370,26 +499,78 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _timerEnfoque = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
 
-      if (_segundosRestantes > 0) {
-        setState(() {
-          _segundosRestantes--;
-        });
-      } else {
-        _timerEnfoque?.cancel();
-        setState(() {
-          _sesionIniciada = false;
-        });
-        _borrarSesionLocal();
+      // Se calcula con la hora de fin (no restando 1) para no desfasarse
+      // si el sistema retrasa el temporizador.
+      final int restantes = _horaFinEnfoque == null
+          ? 0
+          : _horaFinEnfoque!.difference(DateTime.now()).inSeconds;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Has completado el Modo Enfoque exitosamente! 🎉'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 5),
-          ),
-        );
+      if (restantes > 0) {
+        setState(() {
+          _segundosRestantes = restantes;
+        });
+        _ticksDesdeVerificacion++;
+        if (_ticksDesdeVerificacion >= _verificarClaseCada) {
+          _ticksDesdeVerificacion = 0;
+          _verificarClaseVigente();
+          _enviarPendientes();
+        }
+      } else {
+        _terminarClase(mostrarMensaje: true);
       }
     });
+  }
+
+  /// Comprueba que el docente no haya terminado la clase (o iniciado otra).
+  Future<void> _verificarClaseVigente() async {
+    final String? creadoEn = _creadoEnSesion;
+    if (!_sesionIniciada || creadoEn == null) return;
+    try {
+      final Map<String, dynamic>? sesion = await _consultarSesionActiva();
+      if (!_sesionIniciada || _creadoEnSesion != creadoEn) return;
+
+      String? motivo;
+      if (sesion == null) {
+        motivo = 'El docente finalizó la clase.';
+      } else if (sesion['creado_en']?.toString() != creadoEn) {
+        motivo = 'El docente inició una nueva clase. Escanea el nuevo código QR.';
+      }
+      if (motivo == null) return;
+
+      _terminarClase(mostrarMensaje: false);
+      if (mounted) {
+        mostrarAviso(
+          context,
+          motivo,
+          tipo: TipoAviso.info,
+          duracion: const Duration(seconds: 6),
+        );
+      }
+    } catch (e) {
+      // Sin internet: se vuelve a intentar en la próxima verificación
+      debugPrint('No se pudo verificar la clase: $e');
+    }
+  }
+
+  void _terminarClase({required bool mostrarMensaje}) {
+    _creadoEnSesion = null;
+    _finalizarMonitoreo();
+    if (mounted) {
+      setState(() {
+        _segundosRestantes = 0;
+        _sesionIniciada = false;
+      });
+    }
+    _borrarSesionLocal();
+
+    if (mostrarMensaje && mounted) {
+      mostrarAviso(
+        context,
+        '¡Has completado el Modo Enfoque exitosamente! 🎉',
+        tipo: TipoAviso.exito,
+        duracion: const Duration(seconds: 6),
+      );
+    }
   }
 
   String _formatearTiempo(int totalSegundos) {
@@ -398,26 +579,79 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     return '${minutos.toString().padLeft(2, '0')}:${segundos.toString().padLeft(2, '0')}';
   }
 
+  bool get _appEnPrimerPlano =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
   // ============================================================
-  // TIEMPO DE GRACIA (10 SEGUNDOS PARA VOLVER A LA APP)
+  // VIGILANCIA FUERA DE LA APP
+  // Cada segundo pregunta a Android qué app está abierta.
+  // - La primera app detectada se registra como "salio_de_app:<App>".
+  // - Cada app distinta que abra después, como "cambio_app:<App>".
   // ============================================================
-  void _iniciarTiempoGracia() {
-    _timerGracia?.cancel();
-    _limiteGracia = DateTime.now().add(const Duration(seconds: _segundosGracia));
-    _salioRegistrado = false;
+  void _iniciarVigilancia() {
+    if (!_sesionIniciada) return;
+    _inicioFuera ??= DateTime.now();
+    if (_timerVigilancia?.isActive ?? false) return;
+    _timerVigilancia = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _vigilar(),
+    );
+  }
 
-    _timerGracia = Timer(const Duration(seconds: _segundosGracia), () async {
-      if (!mounted || !_sesionIniciada) return;
+  void _detenerVigilancia() {
+    _timerVigilancia?.cancel();
+    _timerVigilancia = null;
+    _paqueteReportado = null;
+    _salidaReportada = false;
+    _inicioFuera = null;
+  }
 
-      final bool enLaApp = WidgetsBinding.instance.lifecycleState ==
-          AppLifecycleState.resumed;
+  Future<void> _vigilar() async {
+    if (!_sesionIniciada || _isScreenLockedOrOff || _consultandoApp) return;
+    if (_appEnPrimerPlano) return;
 
-      if (!enLaApp && !_isScreenLockedOrOff && !_salioRegistrado) {
-        _salioRegistrado = true;
-        String appNombre = await _obtenerAppDestino();
-        _registrarAlerta('salio_de_app:$appNombre', fecha: _limiteGracia);
+    _consultandoApp = true;
+    try {
+      final String? paquete =
+          await _usoChannel.invokeMethod<String>('appActualExterna');
+
+      // Pudo cambiar el estado mientras se consultaba
+      if (!_sesionIniciada || _isScreenLockedOrOff || _appEnPrimerPlano) {
+        return;
       }
-    });
+
+      if (paquete == null) {
+        // Sin permiso o sin datos: si lleva más de 3 s fuera,
+        // se registra una salida genérica (una sola vez).
+        final DateTime? inicio = _inicioFuera;
+        if (!_salidaReportada &&
+            inicio != null &&
+            DateTime.now().difference(inicio) > const Duration(seconds: 3)) {
+          _salidaReportada = true;
+          _registrarAlerta('salio_de_app:Otra App');
+        }
+        return;
+      }
+
+      // Texto vacío = la app en primer plano es esta misma
+      // (p. ej. detrás de la pantalla de bloqueo): no es una salida.
+      if (paquete.isEmpty) return;
+
+      if (paquete == _paqueteReportado) return; // sigue en la misma app
+      _paqueteReportado = paquete;
+
+      final String nombre = _nombreDeApp(paquete);
+      if (!_salidaReportada) {
+        _salidaReportada = true;
+        _registrarAlerta('salio_de_app:$nombre');
+      } else {
+        _registrarAlerta('cambio_app:$nombre');
+      }
+    } catch (e) {
+      debugPrint('Error consultando la app en primer plano: $e');
+    } finally {
+      _consultandoApp = false;
+    }
   }
 
   // ============================================================
@@ -428,51 +662,46 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       (dynamic event) {
         if (!_sesionIniciada) return;
 
-        final bool appEnPrimerPlano =
-            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-
         if (event == 'pantalla_bloqueada') {
           _isScreenLockedOrOff = true;
           _posibleNotificacion = false;
           _desbloqueoRegistrado = false;
-          _salioRegistrado = false;
-          _limiteGracia = null;
-
-          _timerBloqueo?.cancel();
           _timerNotificacion?.cancel();
-          _timerGracia?.cancel();
+          // Al desbloquear se vuelve a informar la app en la que aparezca
+          _paqueteReportado = null;
 
           _registrarAlerta('pantalla_bloqueada');
         } else if (event == 'pantalla_encendida') {
-          _isScreenLockedOrOff = false;
-          if (!appEnPrimerPlano) {
+          // Encendida pero aún en la pantalla de bloqueo: no se vigila
+          // hasta que la desbloquee.
+          if (!_appEnPrimerPlano) {
             _estaEnSegundoPlano = true;
           }
         } else if (event == 'pantalla_desbloqueada') {
           _isScreenLockedOrOff = false;
-          if (!appEnPrimerPlano && !_desbloqueoRegistrado) {
-            _desbloqueoRegistrado = true;
+          // Se espera un momento: si al desbloquear vuelve a ESTA app no hay
+          // alerta. Si entró a otra (p. ej. tocando una notificación en la
+          // pantalla de bloqueo), se registra el desbloqueo y la app abierta.
+          _timerDesbloqueo?.cancel();
+          _timerDesbloqueo = Timer(const Duration(milliseconds: 1200), () {
+            if (!_sesionIniciada || _isScreenLockedOrOff || _appEnPrimerPlano) {
+              return;
+            }
             _estaEnSegundoPlano = true;
-            _registrarAlerta('desbloqueo');
-            _iniciarTiempoGracia();
-          }
+            if (!_desbloqueoRegistrado) {
+              _desbloqueoRegistrado = true;
+              _registrarAlerta('desbloqueo');
+            }
+            _inicioFuera = DateTime.now();
+            _iniciarVigilancia();
+            _vigilar();
+          });
         }
       },
       onError: (dynamic error) {
         debugPrint('Error en canal de pantalla: $error');
       },
     );
-  }
-
-  @override
-  void dispose() {
-    _timerBloqueo?.cancel();
-    _timerNotificacion?.cancel();
-    _timerGracia?.cancel();
-    _timerEnfoque?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    _screenSubscription?.cancel();
-    super.dispose();
   }
 
   // ============================================================
@@ -483,6 +712,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     if (!_sesionIniciada) return;
 
     if (state == AppLifecycleState.inactive) {
+      // "inactive" sin pasar a "paused" = bajó la barra de notificaciones
       if (!_estaEnSegundoPlano && !_isScreenLockedOrOff) {
         _posibleNotificacion = true;
 
@@ -499,69 +729,40 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     } else if (state == AppLifecycleState.paused) {
       _estaEnSegundoPlano = true;
       _posibleNotificacion = false;
-
       _timerNotificacion?.cancel();
-      _timerBloqueo?.cancel();
 
-      if (!_isScreenLockedOrOff) {
-        _timerBloqueo = Timer(
-          const Duration(milliseconds: 1500),
-          () async {
-            if (!_isScreenLockedOrOff &&
-                _estaEnSegundoPlano &&
-                !_salioRegistrado) {
-              _salioRegistrado = true;
-              String appNombre = await _obtenerAppDestino();
-              _registrarAlerta('salio_de_app:$appNombre');
-            }
-          },
-        );
-      }
+      // Empieza a vigilar a qué apps va. Si en realidad bloqueó la pantalla,
+      // el evento "pantalla_bloqueada" pausa la vigilancia.
+      _inicioFuera = DateTime.now();
+      _iniciarVigilancia();
     } else if (state == AppLifecycleState.resumed) {
       if (_horaFinEnfoque != null) {
         final int diferenciaSegundos =
             _horaFinEnfoque!.difference(DateTime.now()).inSeconds;
 
-        setState(() {
-          _segundosRestantes = diferenciaSegundos > 0 ? diferenciaSegundos : 0;
-        });
-
-        if (_segundosRestantes == 0) {
-          _timerEnfoque?.cancel();
-          setState(() {
-            _sesionIniciada = false;
-          });
-          _borrarSesionLocal();
+        if (diferenciaSegundos <= 0) {
+          _terminarClase(mostrarMensaje: true);
+          return;
         }
+        setState(() {
+          _segundosRestantes = diferenciaSegundos;
+        });
       }
 
-      _timerBloqueo?.cancel();
       _timerNotificacion?.cancel();
-      _timerGracia?.cancel();
+      _timerDesbloqueo?.cancel();
+      _detenerVigilancia();
       _desbloqueoRegistrado = false;
 
       _enviarPendientes();
-
-      final DateTime? limite = _limiteGracia;
-      if (limite != null &&
-          !_salioRegistrado &&
-          DateTime.now().isAfter(limite)) {
-        _salioRegistrado = true;
-        _obtenerAppDestino().then((appNombre) {
-          _registrarAlerta('salio_de_app:$appNombre', fecha: limite);
-        });
-      }
-      _limiteGracia = null;
-      _salioRegistrado = false;
+      _verificarClaseVigente();
 
       if (_estaEnSegundoPlano || _isScreenLockedOrOff) {
-        _estaEnSegundoPlano = false;
-        _posibleNotificacion = false;
         _registrarAlerta('regreso');
-        _isScreenLockedOrOff = false;
-      } else {
-        _posibleNotificacion = false;
       }
+      _estaEnSegundoPlano = false;
+      _isScreenLockedOrOff = false;
+      _posibleNotificacion = false;
     }
   }
 
@@ -576,7 +777,9 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       'estudiante_id': SupabaseConfig.client.auth.currentUser?.id,
       'estudiante_nombre': widget.nombreEstudiante,
       'evento': evento,
-      'fecha_hora': (fecha ?? DateTime.now()).toIso8601String(),
+      // Siempre en UTC (con "Z"). Sin zona horaria, Supabase la guardaba como
+      // si ya fuera UTC y el panel mostraba la hora con 5 h de diferencia.
+      'fecha_hora': (fecha ?? DateTime.now()).toUtc().toIso8601String(),
     };
 
     try {
@@ -640,7 +843,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         'estudiante_id': SupabaseConfig.client.auth.currentUser?.id,
         'estudiante_nombre': widget.nombreEstudiante,
         'qr_contenido': codigo,
-        'fecha_hora': DateTime.now().toIso8601String(),
+        'fecha_hora': DateTime.now().toUtc().toIso8601String(),
       });
 
       if (!mounted) return;
@@ -650,23 +853,25 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         _sesionIniciada = true;
       });
 
-      // 3. Recordar la clase en el celular (por si cierra y reabre la app)
+      // 3. Recordar la clase en el celular (por si cierra la app o la sesión)
       await _guardarSesionLocal(sesion, codigo);
 
-      // 4. Iniciar monitoreo y temporizador
+      // 4. Iniciar monitoreo, servicio en primer plano y temporizador
       await _registrarAlerta('ingreso');
       if (!mounted) return;
       _iniciarModoEnfoque(sesion);
+      _iniciarServicioMonitoreo();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Asistencia registrada e inicio de clase confirmado!'),
-          backgroundColor: Colors.green,
-        ),
+      mostrarAviso(
+        context,
+        '¡Asistencia registrada! La clase ha comenzado.',
+        tipo: TipoAviso.exito,
       );
     } catch (e) {
       debugPrint('Error registrando asistencia: $e');
-      _mostrarError('Error al registrar asistencia: $e');
+      _mostrarError(
+        'No se pudo registrar la asistencia. ${mensajeErrorGeneral(e)}',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -678,18 +883,15 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
   void _mostrarError(String mensaje) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-      ),
-    );
+    mostrarAviso(context, mensaje, tipo: TipoAviso.error);
   }
 
   Future<void> _abrirEscanerQR() async {
-    // Pedir el permiso de uso antes de iniciar la clase
+    // Permiso de uso obligatorio; el de notificaciones es opcional
     final bool continuar = await _asegurarPermisoUso();
     if (!continuar || !mounted) return;
+    await _pedirPermisoNotificaciones();
+    if (!mounted) return;
 
     bool procesado = false;
 
@@ -783,18 +985,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar Sesión',
-            onPressed: () async {
-              await _borrarSesionLocal();
-              await SupabaseConfig.client.auth.signOut();
-              if (context.mounted) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                );
-              }
-            },
+            onPressed: _cerrarSesion,
           ),
         ],
       ),

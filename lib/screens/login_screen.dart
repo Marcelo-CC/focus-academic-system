@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/supabase_config.dart';
+import '../utils/mensajes.dart';
 import 'estudiante_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -13,23 +14,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _cargando = false;
+  bool _verPassword = false;
+  String? _error; // Mensaje de error que se muestra dentro del formulario
 
   Future<void> _iniciarSesion() async {
+    FocusScope.of(context).unfocus();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor completa todos los campos'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      setState(() {
+        _error = 'Completa tu correo y tu contraseña.';
+      });
       return;
     }
 
     setState(() {
       _cargando = true;
+      _error = null;
     });
 
     try {
@@ -51,18 +53,17 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (context) => EstudianteScreen(
               nombreEstudiante: nombreEstudiante,
+              desdeLogin: true,
             ),
           ),
         );
       }
     } catch (e) {
+      debugPrint('Error de inicio de sesión: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error de autenticación: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _error = mensajeErrorLogin(e);
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -118,6 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (_) {
+                      if (_error != null) setState(() => _error = null);
+                    },
                     decoration: InputDecoration(
                       labelText: 'Correo Institucional',
                       prefixIcon: const Icon(Icons.email),
@@ -129,15 +135,70 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: !_verPassword,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!_cargando) _iniciarSesion();
+                    },
+                    onChanged: (_) {
+                      if (_error != null) setState(() => _error = null);
+                    },
                     decoration: InputDecoration(
                       labelText: 'Contraseña',
                       prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        tooltip: _verPassword
+                            ? 'Ocultar contraseña'
+                            : 'Mostrar contraseña',
+                        icon: Icon(
+                          _verPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () =>
+                            setState(() => _verPassword = !_verPassword),
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFEF9A9A)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFC62828),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: const TextStyle(
+                                color: Color(0xFFC62828),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,

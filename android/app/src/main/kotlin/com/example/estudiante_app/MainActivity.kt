@@ -76,6 +76,19 @@ class MainActivity : FlutterActivity() {
                     val segundos = call.argument<Int>("segundos") ?: 30
                     result.success(ultimaAppEnPrimerPlano(segundos))
                 }
+                "appActualExterna" -> result.success(appActualExterna())
+                "iniciarMonitoreo" -> {
+                    try {
+                        MonitoreoService.iniciar(this)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SERVICIO", e.message, null)
+                    }
+                }
+                "detenerMonitoreo" -> {
+                    MonitoreoService.detener(this)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -111,6 +124,37 @@ class MainActivity : FlutterActivity() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
+    }
+
+    /**
+     * App que está en primer plano AHORA MISMO:
+     *  - el nombre del paquete si es OTRA app,
+     *  - "" (texto vacío) si es esta misma app,
+     *  - null si no hay permiso o no hay datos.
+     */
+    private fun appActualExterna(): String? {
+        if (!tienePermisoUso()) return null
+
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val fin = System.currentTimeMillis()
+        val inicio = fin - 60 * 60 * 1000L // última hora
+
+        val eventos = usm.queryEvents(inicio, fin)
+        val evento = UsageEvents.Event()
+        var actual: String? = null
+        var tiempo = 0L
+
+        while (eventos.hasNextEvent()) {
+            eventos.getNextEvent(evento)
+            @Suppress("DEPRECATION")
+            if (evento.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
+                evento.timeStamp >= tiempo
+            ) {
+                actual = evento.packageName
+                tiempo = evento.timeStamp
+            }
+        }
+        return if (actual == packageName) "" else actual
     }
 
     /**

@@ -336,6 +336,19 @@
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
 
+    /* FILTRO POR ESTUDIANTE */
+    .filtro-barra {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .filtro-estudiante { width: auto; min-width: 220px; max-width: 100%; margin: 0; }
+    .filtro-contador { color: var(--text-muted); font-weight: 500; font-size: 13px; }
+
     /* LOGOS DE APPS */
     .app-logo {
       display: inline-flex;
@@ -567,6 +580,7 @@
 
             <div style="display: flex; gap: 10px; align-items: center;">
               <button type="submit" class="btn btn-primary" style="width: auto;">Guardar y Aplicar Ajustes</button>
+              <button type="button" id="btn-terminar-clase" class="btn btn-danger" style="width: auto; display: none;" onclick="terminarClase()">Terminar Clase</button>
               <span id="mensaje-guardado" style="color: var(--green); font-size: 13px; font-weight: 600;"></span>
             </div>
           </form>
@@ -628,6 +642,12 @@
 
       <!-- MÓDULO 4: ANALÍTICA -->
       <div id="tab-analitica" class="tab-content">
+        <div class="filtro-barra">
+          <label for="filtro-analitica">Estudiante:</label>
+          <select id="filtro-analitica" class="form-control filtro-estudiante" onchange="renderGrafico()">
+            <option value="">Todos los estudiantes</option>
+          </select>
+        </div>
         <div class="card">
           <div class="card-title">Tendencias de Distracción (Datos Reales de Supabase)</div>
           <div style="max-width: 500px; margin: 0 auto;">
@@ -635,7 +655,7 @@
           </div>
         </div>
         <div class="card" style="margin-top: 20px;">
-          <div class="card-title">Apps a las que salieron los estudiantes</div>
+          <div class="card-title">Apps que usaron los estudiantes durante la clase</div>
           <div id="apps-ranking" class="apps-ranking">
             <div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin salidas registradas.</div>
           </div>
@@ -646,6 +666,13 @@
       <div id="tab-bitacora" class="tab-content">
         <div class="card">
           <div class="card-title">Historial de Notificaciones y Eventos en Tiempo Real</div>
+          <div class="filtro-barra">
+            <label for="filtro-bitacora">Estudiante:</label>
+            <select id="filtro-bitacora" class="form-control filtro-estudiante" onchange="renderBitacora()">
+              <option value="">Todos los estudiantes</option>
+            </select>
+            <span id="bitacora-contador" class="filtro-contador"></span>
+          </div>
           <div id="alertas-container">
             <div style="text-align: center; color: var(--text-muted); padding: 20px;">Cargando registro de eventos...</div>
           </div>
@@ -667,6 +694,21 @@
   let currentUser = null;
   let timerWebInterval = null;
   let estudiantesEstadoGlobal = []; // Guarda el estado actual para procesar notas
+
+  // Mensajes claros para los errores de inicio de sesión de Supabase
+  function mensajeErrorLogin(error) {
+    const codigo = error?.code || '';
+    const texto = (error?.message || '').toLowerCase();
+    if (codigo === 'invalid_credentials' || texto.includes('invalid login credentials')) {
+      return 'Correo o contraseña incorrectos.';
+    }
+    if (codigo === 'email_not_confirmed') return 'Tu correo aún no ha sido confirmado.';
+    if (codigo.startsWith('over_')) return 'Demasiados intentos. Espera un momento y vuelve a intentarlo.';
+    if (texto.includes('fetch') || texto.includes('network')) {
+      return 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.';
+    }
+    return 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+  }
 
   // CONTROL DE SESIÓN DOCENTE (AUTH)
   async function verificarSesionExistente() {
@@ -693,7 +735,7 @@
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      errorDiv.innerText = 'Error: ' + error.message;
+      errorDiv.innerText = mensajeErrorLogin(error);
       btnSubmit.innerText = 'Iniciar Sesión';
     } else if (data.user) {
       currentUser = data.user;
@@ -723,6 +765,7 @@
     let grupo = "Aula E -201";
     let duracion = 10;
     let creadoEn = null;
+    let estado = null;
 
     try {
       const { data, error } = await supabaseClient
@@ -738,6 +781,7 @@
         grupo = data.grupo || grupo;
         duracion = data.duracion || duracion;
         creadoEn = data.creado_en;
+        estado = data.estado;
       }
     } catch (err) {
       console.log('Error al cargar sesión:', err);
@@ -748,9 +792,47 @@
     document.getElementById('input-duracion').value = duracion;
     document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
 
-    if (creadoEn) {
+    if (creadoEn && estado === 'ACTIVA') {
       iniciarCronometroWeb(duracion, new Date(creadoEn));
+    } else if (creadoEn) {
+      mostrarSesionFinalizada();
     }
+  }
+
+  function mostrarSesionFinalizada() {
+    if (timerWebInterval) clearInterval(timerWebInterval);
+    const badge = document.getElementById('badgeEstado');
+    document.getElementById('tiempoRestanteWeb').innerText = '00:00';
+    badge.innerText = 'SESIÓN FINALIZADA';
+    badge.className = 'status-badge badge-ended';
+    document.getElementById('btn-terminar-clase').style.display = 'none';
+  }
+
+  // MÓDULO 2: TERMINAR LA CLASE ANTES DE TIEMPO
+  async function terminarClase() {
+    if (!confirm('¿Terminar la clase ahora?\n\nEl temporizador se detendrá y los estudiantes dejarán de ser monitoreados.')) {
+      return;
+    }
+    const btn = document.getElementById('btn-terminar-clase');
+    const msg = document.getElementById('mensaje-guardado');
+    btn.disabled = true;
+
+    const { error } = await supabaseClient
+      .from('configuracion_sesion')
+      .update({ estado: 'FINALIZADA' })
+      .eq('docente_id', currentUser.id);
+
+    btn.disabled = false;
+    if (error) {
+      console.error('Error al terminar la clase:', error);
+      alert('No se pudo terminar la clase. Inténtalo de nuevo.');
+      return;
+    }
+
+    detenerQR();
+    mostrarSesionFinalizada();
+    msg.innerText = '✓ Clase terminada. Los estudiantes serán notificados.';
+    setTimeout(() => { msg.innerText = ''; }, 4000);
   }
 
   // MÓDULO 2: GUARDAR Y SINCRONIZAR TIEMPO REAL CON LA APP FLUTTER
@@ -798,15 +880,13 @@
       const restantes = duracionTotalSegundos - segundosTranscurridos;
 
       if (restantes <= 0) {
-        clearInterval(timerWebInterval);
-        document.getElementById('tiempoRestanteWeb').innerText = "00:00";
-        badge.innerText = "SESIÓN FINALIZADA";
-        badge.className = "status-badge badge-ended";
+        mostrarSesionFinalizada();
         return;
       }
 
       badge.innerText = "SESIÓN EN CURSO";
       badge.className = "status-badge badge-active";
+      document.getElementById('btn-terminar-clase').style.display = 'inline-block';
 
       const min = Math.floor(restantes / 60).toString().padStart(2, '0');
       const seg = (restantes % 60).toString().padStart(2, '0');
@@ -864,12 +944,43 @@
   }
 
   // PROCESAMIENTO EN TIEMPO REAL (MÓDULOS 1, 3 Y 5)
+  // Últimos registros recibidos (para poder filtrar la bitácora sin volver a consultar)
+  let ultimosRegistros = [];
+
+  // Llena un <select> con la lista de estudiantes, conservando la opción elegida.
+  function actualizarOpcionesFiltro(idSelect, nombres) {
+    const select = document.getElementById(idSelect);
+    if (!select) return;
+    const elegido = select.value;
+    select.innerHTML = '<option value="">Todos los estudiantes</option>' +
+      nombres.map(n => `<option value="${escaparHtml(n)}">${escaparHtml(n)}</option>`).join('');
+    select.value = nombres.includes(elegido) ? elegido : '';
+  }
+
+  function renderBitacora() {
+    const filtro = document.getElementById('filtro-bitacora').value;
+    const lista = filtro
+      ? ultimosRegistros.filter(r => (r.estudiante_nombre || 'Estudiante') === filtro)
+      : ultimosRegistros;
+
+    const containerBitacora = document.getElementById('alertas-container');
+    containerBitacora.innerHTML = lista.length
+      ? lista.map(buildEventCard).join('')
+      : '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin eventos para este estudiante.</div>';
+
+    document.getElementById('bitacora-contador').innerText =
+      `${lista.length} evento${lista.length === 1 ? '' : 's'}`;
+  }
+
   function procesarModulo1Y5(registros) {
     if (!registros || registros.length === 0) return;
 
-    // Bitácora de eventos
-    const containerBitacora = document.getElementById('alertas-container');
-    containerBitacora.innerHTML = registros.map(buildEventCard).join('');
+    // Bitácora de eventos (con filtro por estudiante)
+    ultimosRegistros = registros;
+    const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort();
+    actualizarOpcionesFiltro('filtro-bitacora', nombres);
+    actualizarOpcionesFiltro('filtro-analitica', nombres);
+    renderBitacora();
 
     // Mapeo del último estado e historial por estudiante
     const alumnosMap = {};
@@ -878,30 +989,37 @@
     // para que el "estado actual" de cada estudiante sea el de su ÚLTIMO evento.
     [...registros].reverse().forEach(registro => {
       const item = { ...registro, evento: tipoEvento(registro.evento) };
+      const app = detalleEvento(registro.evento);
       const nombre = item.estudiante_nombre || 'Estudiante';
-      
+
       if (!alumnosMap[nombre]) {
-        alumnosMap[nombre] = { 
-          nombre: nombre, 
-          estado: 'green', 
-          detalle: 'Activo / Enfoque', 
-          distracciones: 0 
+        alumnosMap[nombre] = {
+          nombre: nombre,
+          estado: 'green',
+          detalle: 'Activo / Enfoque',
+          distracciones: 0
         };
       }
 
       // Conteo de eventos para gamificación
-      if (['salio_de_app', 'pantalla_bloqueada', 'vio_notificaciones'].includes(item.evento)) {
+      if (['salio_de_app', 'cambio_app', 'pantalla_bloqueada', 'vio_notificaciones', 'cerro_sesion'].includes(item.evento)) {
         alumnosMap[nombre].distracciones += 1;
       }
 
       // Estado actual más reciente
-      if (['salio_de_app', 'pantalla_bloqueada'].includes(item.evento)) {
+      if (['salio_de_app', 'cambio_app'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'red';
-        alumnosMap[nombre].detalle = item.evento === 'salio_de_app' ? 'Salió de la app' : 'Pantalla bloqueada';
+        alumnosMap[nombre].detalle = app ? `Fuera de la app: ${app}` : 'Salió de la app';
+      } else if (item.evento === 'pantalla_bloqueada') {
+        alumnosMap[nombre].estado = 'red';
+        alumnosMap[nombre].detalle = 'Pantalla bloqueada';
+      } else if (item.evento === 'cerro_sesion') {
+        alumnosMap[nombre].estado = 'red';
+        alumnosMap[nombre].detalle = 'Cerró sesión';
       } else if (['desbloqueo', 'vio_notificaciones'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'yellow';
         alumnosMap[nombre].detalle = item.evento === 'desbloqueo' ? 'Desbloqueó cel' : 'Vio notificaciones';
-      } else if (['regreso', 'ingreso', 'reabrio_app'].includes(item.evento)) {
+      } else if (['regreso', 'ingreso', 'reabrio_app', 'reingreso_sesion'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'green';
         alumnosMap[nombre].detalle = 'Activo / Enfoque';
       }
@@ -936,8 +1054,8 @@
       <div class="student-card">
         <div class="status-dot dot-${est.estado}"></div>
         <div class="student-info">
-          <div class="student-name">${est.nombre}</div>
-          <div class="student-detail">${est.detalle}</div>
+          <div class="student-name">${escaparHtml(est.nombre)}</div>
+          <div class="student-detail">${escaparHtml(est.detalle)}</div>
         </div>
       </div>
     `).join('');
@@ -987,7 +1105,7 @@
 
       return `
         <tr>
-          <td style="font-weight: bold; color: #334155;">${al.nombre}</td>
+          <td style="font-weight: bold; color: #334155;">${escaparHtml(al.nombre)}</td>
           <td style="text-align: center;">${porcentajeEnfoque}%</td>
           <td style="text-align: center;">${al.distracciones} alertas</td>
           <td style="text-align: center; font-size: 16px; font-weight: bold; color: ${colorNota};">
@@ -1105,6 +1223,22 @@
         clase = 'event-red';
         icono = '⚠';
         break;
+      case 'cambio_app':
+        mensaje = `${estudiante_nombre} estando fuera, abrió: ` +
+          `<span class="app-chip">${logoApp(detalle || 'Otra App')}${escaparHtml(detalle || 'Otra App')}</span>`;
+        clase = 'event-red';
+        icono = '↪';
+        break;
+      case 'cerro_sesion':
+        mensaje = `${estudiante_nombre} cerró sesión durante la clase.`;
+        clase = 'event-red';
+        icono = '🚪';
+        break;
+      case 'reingreso_sesion':
+        mensaje = `${estudiante_nombre} volvió a iniciar sesión y retomó la clase.`;
+        clase = 'event-orange';
+        icono = '🔑';
+        break;
       case 'reabrio_app':
         mensaje = `${estudiante_nombre} cerró la app y la volvió a abrir.`;
         clase = 'event-orange';
@@ -1116,7 +1250,7 @@
         icono = '🔒';
         break;
       case 'desbloqueo':
-        mensaje = `${estudiante_nombre} desbloqueó el celular (10s de gracia).`;
+        mensaje = `${estudiante_nombre} desbloqueó el celular.`;
         clase = 'event-orange';
         icono = '🔓';
         break;
@@ -1164,18 +1298,26 @@
   // MÓDULO 4: RENDERING DINÁMICO DE ANALÍTICA CON SUPABASE
   let chartInstance = null;
   async function renderGrafico() {
-    const { data: alertas, error } = await supabaseClient
+    const { data: todas, error } = await supabaseClient
       .from('alertas_inactividad')
-      .select('evento');
+      .select('evento, estudiante_nombre');
 
-    if (error || !alertas || alertas.length === 0) {
+    if (error || !todas || todas.length === 0) {
       console.log("Sin registros para procesar analítica");
       return;
     }
 
+    // Filtro por estudiante (vacío = todos)
+    const nombres = [...new Set(todas.map(a => a.estudiante_nombre || 'Estudiante'))].sort();
+    actualizarOpcionesFiltro('filtro-analitica', nombres);
+    const filtro = document.getElementById('filtro-analitica').value;
+    const alertas = filtro
+      ? todas.filter(a => (a.estudiante_nombre || 'Estudiante') === filtro)
+      : todas;
+
     // Categorización de eventos registrados.
     // Los eventos positivos (ingresó, volvió, reabrió) NO son distracciones y no se cuentan.
-    const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'reabrio_app'];
+    const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'reabrio_app', 'reingreso_sesion'];
     let salioApp = 0;
     let bloqueo = 0;
     let notificaciones = 0;
@@ -1185,7 +1327,7 @@
     alertas.forEach(a => {
       const tipo = tipoEvento(a.evento);
       if (EVENTOS_POSITIVOS.includes(tipo)) return;
-      if (tipo === 'salio_de_app') {
+      if (tipo === 'salio_de_app' || tipo === 'cambio_app') {
         salioApp++;
         const app = detalleEvento(a.evento) || 'Otra App';
         salidasPorApp[app] = (salidasPorApp[app] || 0) + 1;

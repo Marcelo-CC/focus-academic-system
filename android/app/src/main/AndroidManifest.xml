@@ -3,6 +3,10 @@
 
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions"/>
+    <!-- Servicio en primer plano para que Android no congele la app durante la clase -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="estudiante_app"
@@ -30,6 +34,15 @@
             </intent-filter>
 
         </activity>
+
+        <service
+            android:name=".MonitoreoService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Monitoreo de concentración del estudiante durante la clase" />
+        </service>
 
         <meta-data
             android:name="flutterEmbedding"

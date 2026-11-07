@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono pequeño (monocromo) de la notificación "Clase en curso": birrete dentro de esquinas de enfoque -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="36"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M80,170 V110 a30,30 0 0 1 30,-30 H170 M342,80 H402 a30,30 0 0 1 30,30 V170 M432,342 V402 a30,30 0 0 1 -30,30 H342 M170,432 H110 a30,30 0 0 1 -30,-30 V342" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M256,160 L392,220 L256,280 L120,220 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M178,252 V308 C178,336 222,356 256,356 C290,356 334,336 334,308 V252 L256,286 Z" />
+</vector>
