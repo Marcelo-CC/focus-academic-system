@@ -336,6 +336,7 @@
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
     .event-grave { background-color: #ffcdd2; border: 2px solid #c62828; }
+    .event-gray { background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 
     /* BARRA DEL DÍA Y CALENDARIO */
     .barra-dia {
@@ -1169,7 +1170,9 @@
       }
 
       // Conteo de eventos para gamificación
-      if (['salio_de_app', 'cambio_app', 'pantalla_bloqueada', 'vio_notificaciones', 'cerro_sesion'].includes(item.evento)) {
+      // (Bloquear el celular NO es distracción: solo cuenta si al desbloquear
+      //  entra a otra app, lo que se registra como "salio_de_app"/"cambio_app".)
+      if (['salio_de_app', 'cambio_app', 'vio_notificaciones', 'cerro_sesion'].includes(item.evento)) {
         alumnosMap[nombre].distracciones += 1;
       }
       // Falta grave (no volvió en 10 s tras el aviso): cuenta como 2 distracciones
@@ -1186,15 +1189,15 @@
         alumnosMap[nombre].estado = 'red';
         alumnosMap[nombre].detalle = app ? `Fuera de la app: ${app}` : 'Salió de la app';
       } else if (item.evento === 'pantalla_bloqueada') {
-        alumnosMap[nombre].estado = 'red';
-        alumnosMap[nombre].detalle = 'Pantalla bloqueada';
+        alumnosMap[nombre].estado = 'green';
+        alumnosMap[nombre].detalle = 'Celular bloqueado (sin distracción)';
       } else if (item.evento === 'cerro_sesion') {
         alumnosMap[nombre].estado = 'red';
         alumnosMap[nombre].detalle = 'Cerró sesión';
       } else if (['desbloqueo', 'vio_notificaciones'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'yellow';
         alumnosMap[nombre].detalle = item.evento === 'desbloqueo' ? 'Desbloqueó cel' : 'Vio notificaciones';
-      } else if (['regreso', 'ingreso', 'reabrio_app', 'reingreso_sesion'].includes(item.evento)) {
+      } else if (['regreso', 'regreso_tarde', 'ingreso', 'reabrio_app', 'reingreso_sesion'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'green';
         alumnosMap[nombre].detalle = 'Activo / Enfoque';
       }
@@ -1448,8 +1451,8 @@
         icono = '🔄';
         break;
       case 'pantalla_bloqueada':
-        mensaje = `${estudiante_nombre} bloqueó la pantalla.`;
-        clase = 'event-red';
+        mensaje = `${estudiante_nombre} bloqueó el celular (no cuenta como distracción).`;
+        clase = 'event-gray';
         icono = '🔒';
         break;
       case 'desbloqueo':
@@ -1461,6 +1464,13 @@
         mensaje = `${estudiante_nombre} desplegó la barra de notificaciones.`;
         clase = 'event-orange';
         icono = '🔔';
+        break;
+      case 'regreso_tarde':
+        mensaje = `<strong>FALTA GRAVE:</strong> ${estudiante_nombre} volvió a la clase ` +
+          (detalle ? `después de ${escaparHtml(detalle)} segundos ` : 'después de los 10 segundos ') +
+          `(el límite era 10 s).`;
+        clase = 'event-red event-grave';
+        icono = '⏱️';
         break;
       case 'regreso':
         mensaje = `${estudiante_nombre} volvió a la aplicación.`;
@@ -1827,9 +1837,11 @@
 
     // Categorización de eventos registrados.
     // Los eventos positivos (ingresó, volvió, reabrió) NO son distracciones y no se cuentan.
-    const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'reabrio_app', 'reingreso_sesion'];
+    // Bloquear/desbloquear tampoco: si al desbloquear entra a otra app, eso ya
+    // se cuenta como "Cambió de App".
+    const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'regreso_tarde', 'reabrio_app', 'reingreso_sesion',
+      'pantalla_bloqueada', 'desbloqueo'];
     let salioApp = 0;
-    let bloqueo = 0;
     let notificaciones = 0;
     let otros = 0;
     let faltas = 0;
@@ -1844,14 +1856,13 @@
         const app = detalleEvento(a.evento) || 'Otra App';
         salidasPorApp[app] = (salidasPorApp[app] || 0) + 1;
       }
-      else if (tipo === 'pantalla_bloqueada') bloqueo++;
-      else if (tipo === 'vio_notificaciones' || tipo === 'desbloqueo') notificaciones++;
+      else if (tipo === 'vio_notificaciones') notificaciones++;
       else otros++;
     });
 
     renderRankingApps(salidasPorApp);
 
-    const total = salioApp + bloqueo + notificaciones + otros + faltas;
+    const total = salioApp + notificaciones + otros + faltas;
     const vacio = document.getElementById('analitica-vacia');
     vacio.innerText = total === 0
       ? `Sin distracciones registradas el ${fechaSimple(diaSeleccionado)}${filtro ? ' para este estudiante' : ''}.`
@@ -1859,7 +1870,6 @@
     vacio.style.display = total === 0 ? 'block' : 'none';
 
     const pctSalio = Math.round((salioApp / total) * 100) || 0;
-    const pctBloqueo = Math.round((bloqueo / total) * 100) || 0;
     const pctNotif = Math.round((notificaciones / total) * 100) || 0;
     const pctOtros = Math.round((otros / total) * 100) || 0;
     const pctFaltas = Math.round((faltas / total) * 100) || 0;
@@ -1875,14 +1885,13 @@
       data: {
         labels: [
           `Cambió de App (${pctSalio}%)`,
-          `Bloqueó Pantalla (${pctBloqueo}%)`,
-          `Notificaciones / Desbloqueo (${pctNotif}%)`,
-          `Otros Eventos (${pctOtros}%)`,
+          `Vio notificaciones (${pctNotif}%)`,
+          `Otros (cerró sesión) (${pctOtros}%)`,
           `Faltas graves (${pctFaltas}%)`
         ],
         datasets: [{
-          data: [salioApp, bloqueo, notificaciones, otros, faltas],
-          backgroundColor: ['#e74c3c', '#3498db', '#f1c40f', '#95a5a6', '#7f0000']
+          data: [salioApp, notificaciones, otros, faltas],
+          backgroundColor: ['#e74c3c', '#f1c40f', '#95a5a6', '#7f0000']
         }]
       },
       options: { 

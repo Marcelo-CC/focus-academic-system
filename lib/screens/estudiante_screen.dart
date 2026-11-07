@@ -81,6 +81,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   static const int _segundosParaVolver = 10;
   bool _avisoSalidaPendiente = false;
   Timer? _timerAvisoSalida;
+  DateTime? _salidaDesde; // cuándo salió a otra app (inicio de los 10 s)
+  bool _faltaRegistrada = false; // ya se registró la falta grave en esta salida
 
   // "creado_en" de la clase escaneada. Si el docente la termina o inicia
   // otra, deja de coincidir y la clase se finaliza también en el celular.
@@ -155,13 +157,26 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   // ============================================================
   void _mostrarAvisoSalida() {
     _avisoSalidaPendiente = false;
+    _salidaDesde ??= DateTime.now(); // empieza la cuenta de 10 s
     if (_timerAvisoSalida?.isActive ?? false) return; // ya corre la cuenta
 
     _timerAvisoSalida = Timer(const Duration(seconds: _segundosParaVolver), () {
       _timerAvisoSalida = null;
       if (!_sesionIniciada || _appEnPrimerPlano || _isScreenLockedOrOff) return;
-      _registrarAlerta('falta_grave');
+      _registrarFaltaGrave();
     });
+  }
+
+  /// Registra la falta grave UNA sola vez por salida. Se intenta a los 10 s
+  /// (temporizador) y, por si el sistema lo retrasó, también al volver.
+  void _registrarFaltaGrave() {
+    if (_faltaRegistrada) return;
+    _faltaRegistrada = true;
+    final DateTime? desde = _salidaDesde;
+    _registrarAlerta(
+      'falta_grave',
+      fecha: desde?.add(const Duration(seconds: _segundosParaVolver)),
+    );
   }
 
   void _cancelarAvisoSalida() {
@@ -708,9 +723,11 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           _avisoSalidaPendiente = false;
           _timerAvisoSalida?.cancel();
           _timerAvisoSalida = null;
+          _salidaDesde = null;
           // Al desbloquear se vuelve a informar la app en la que aparezca
           _paqueteReportado = null;
 
+          // Solo informativo: bloquear el celular NO cuenta como distracción
           _registrarAlerta('pantalla_bloqueada');
         } else if (event == 'pantalla_encendida') {
           // Encendida pero aún en la pantalla de bloqueo: no se vigila
@@ -793,6 +810,11 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         });
       }
 
+      // ¿Cuánto tiempo estuvo en otra app?
+      final DateTime? desde = _salidaDesde;
+      final int? segundosFuera =
+          desde == null ? null : DateTime.now().difference(desde).inSeconds;
+
       _timerNotificacion?.cancel();
       _timerDesbloqueo?.cancel();
       _cancelarAvisoSalida();
@@ -802,9 +824,21 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       _enviarPendientes();
       _verificarClaseVigente();
 
-      if (_estaEnSegundoPlano || _isScreenLockedOrOff) {
+      // Si tardó 10 s o más, la falta grave se registra sí o sí
+      // (aunque el temporizador en segundo plano se haya retrasado).
+      if (segundosFuera != null && segundosFuera >= _segundosParaVolver) {
+        _registrarFaltaGrave();
+      }
+
+      if (_faltaRegistrada) {
+        _registrarAlerta(
+          segundosFuera != null ? 'regreso_tarde:$segundosFuera' : 'regreso_tarde',
+        );
+      } else if (_estaEnSegundoPlano || _isScreenLockedOrOff) {
         _registrarAlerta('regreso');
       }
+      _salidaDesde = null;
+      _faltaRegistrada = false;
       _estaEnSegundoPlano = false;
       _isScreenLockedOrOff = false;
       _posibleNotificacion = false;
