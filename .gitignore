@@ -50,3 +50,4 @@ app.*.map.json
 # Configuración local con claves de Supabase (no subir)
 /config/supabase.json
 /config.js
+/public/
