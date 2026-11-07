@@ -335,6 +335,7 @@
     .event-green { background-color: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
+    .event-grave { background-color: #ffcdd2; border: 2px solid #c62828; }
 
     /* BARRA DEL DÍA Y CALENDARIO */
     .barra-dia {
@@ -1162,7 +1163,8 @@
           nombre: nombre,
           estado: 'green',
           detalle: 'Activo / Enfoque',
-          distracciones: 0
+          distracciones: 0,
+          faltasGraves: 0
         };
       }
 
@@ -1170,9 +1172,17 @@
       if (['salio_de_app', 'cambio_app', 'pantalla_bloqueada', 'vio_notificaciones', 'cerro_sesion'].includes(item.evento)) {
         alumnosMap[nombre].distracciones += 1;
       }
+      // Falta grave (no volvió en 10 s tras el aviso): cuenta como 2 distracciones
+      if (item.evento === 'falta_grave') {
+        alumnosMap[nombre].distracciones += 2;
+        alumnosMap[nombre].faltasGraves += 1;
+      }
 
       // Estado actual más reciente
-      if (['salio_de_app', 'cambio_app'].includes(item.evento)) {
+      if (item.evento === 'falta_grave') {
+        alumnosMap[nombre].estado = 'red';
+        alumnosMap[nombre].detalle = 'Falta grave: no volvió en 10 s';
+      } else if (['salio_de_app', 'cambio_app'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'red';
         alumnosMap[nombre].detalle = app ? `Fuera de la app: ${app}` : 'Salió de la app';
       } else if (item.evento === 'pantalla_bloqueada') {
@@ -1294,7 +1304,7 @@
         <tr>
           <td style="font-weight: bold; color: #334155;">${escaparHtml(al.nombre)}</td>
           <td style="text-align: center;">${porcentajeEnfoque}%</td>
-          <td style="text-align: center;">${al.distracciones} alertas</td>
+          <td style="text-align: center;">${al.distracciones} alertas${al.faltasGraves ? `<br><span style="color: #b71c1c; font-size: 12px; font-weight: 700;">🚨 ${al.faltasGraves} falta${al.faltasGraves === 1 ? '' : 's'} grave${al.faltasGraves === 1 ? '' : 's'}</span>` : ''}</td>
           <td style="text-align: center; font-size: 16px; font-weight: bold; color: ${colorNota};">
             ${notaVigesimal} / 20
           </td>
@@ -1415,6 +1425,12 @@
           `<span class="app-chip">${logoApp(detalle || 'Otra App')}${escaparHtml(detalle || 'Otra App')}</span>`;
         clase = 'event-red';
         icono = '↪';
+        break;
+      case 'falta_grave':
+        mensaje = `<strong>FALTA GRAVE:</strong> ${estudiante_nombre} no volvió a la clase ` +
+          `en 10 segundos tras el aviso (cuenta como 2 distracciones).`;
+        clase = 'event-red event-grave';
+        icono = '🚨';
         break;
       case 'cerro_sesion':
         mensaje = `${estudiante_nombre} cerró sesión durante la clase.`;
@@ -1816,12 +1832,14 @@
     let bloqueo = 0;
     let notificaciones = 0;
     let otros = 0;
+    let faltas = 0;
     const salidasPorApp = {};
 
     alertas.forEach(a => {
       const tipo = tipoEvento(a.evento);
       if (EVENTOS_POSITIVOS.includes(tipo)) return;
-      if (tipo === 'salio_de_app' || tipo === 'cambio_app') {
+      if (tipo === 'falta_grave') faltas++;
+      else if (tipo === 'salio_de_app' || tipo === 'cambio_app') {
         salioApp++;
         const app = detalleEvento(a.evento) || 'Otra App';
         salidasPorApp[app] = (salidasPorApp[app] || 0) + 1;
@@ -1833,7 +1851,7 @@
 
     renderRankingApps(salidasPorApp);
 
-    const total = salioApp + bloqueo + notificaciones + otros;
+    const total = salioApp + bloqueo + notificaciones + otros + faltas;
     const vacio = document.getElementById('analitica-vacia');
     vacio.innerText = total === 0
       ? `Sin distracciones registradas el ${fechaSimple(diaSeleccionado)}${filtro ? ' para este estudiante' : ''}.`
@@ -1844,6 +1862,7 @@
     const pctBloqueo = Math.round((bloqueo / total) * 100) || 0;
     const pctNotif = Math.round((notificaciones / total) * 100) || 0;
     const pctOtros = Math.round((otros / total) * 100) || 0;
+    const pctFaltas = Math.round((faltas / total) * 100) || 0;
 
     const ctx = document.getElementById('chartAnalitica').getContext('2d');
 
@@ -1858,11 +1877,12 @@
           `Cambió de App (${pctSalio}%)`,
           `Bloqueó Pantalla (${pctBloqueo}%)`,
           `Notificaciones / Desbloqueo (${pctNotif}%)`,
-          `Otros Eventos (${pctOtros}%)`
+          `Otros Eventos (${pctOtros}%)`,
+          `Faltas graves (${pctFaltas}%)`
         ],
         datasets: [{
-          data: [salioApp, bloqueo, notificaciones, otros],
-          backgroundColor: ['#e74c3c', '#3498db', '#f1c40f', '#95a5a6']
+          data: [salioApp, bloqueo, notificaciones, otros, faltas],
+          backgroundColor: ['#e74c3c', '#3498db', '#f1c40f', '#95a5a6', '#7f0000']
         }]
       },
       options: { 

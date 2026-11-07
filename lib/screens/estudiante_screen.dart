@@ -112,6 +112,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _timerDesbloqueo?.cancel();
     _timerVigilancia?.cancel();
     _timerEnfoque?.cancel();
+    _timerAvisoSalida?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _screenSubscription?.cancel();
     super.dispose();
@@ -147,20 +148,19 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   }
 
   // ============================================================
-  // AVISO "TIENES 10 SEGUNDOS PARA VOLVER"
+  // FALTA GRAVE: NO VOLVIÓ A LA APP EN 10 SEGUNDOS
+  // Los avisos emergentes ("Tienes 10 segundos…" y "Cometiste una falta
+  // grave") los muestra el servicio nativo al instante. Aquí solo se
+  // REGISTRA la falta para el docente (cuenta como 2 distracciones).
   // ============================================================
   void _mostrarAvisoSalida() {
     _avisoSalidaPendiente = false;
-    _usoChannel
-        .invokeMethod('mostrarAvisoSalida', {'segundos': _segundosParaVolver})
-        .catchError((Object e) => debugPrint('No se pudo mostrar el aviso: $e'));
+    if (_timerAvisoSalida?.isActive ?? false) return; // ya corre la cuenta
 
-    _timerAvisoSalida?.cancel();
     _timerAvisoSalida = Timer(const Duration(seconds: _segundosParaVolver), () {
-      if (!_sesionIniciada || _appEnPrimerPlano) return;
-      _usoChannel
-          .invokeMethod('avisoTiempoAgotado')
-          .catchError((Object e) => debugPrint('No se pudo actualizar el aviso: $e'));
+      _timerAvisoSalida = null;
+      if (!_sesionIniciada || _appEnPrimerPlano || _isScreenLockedOrOff) return;
+      _registrarAlerta('falta_grave');
     });
   }
 
@@ -703,8 +703,11 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           _posibleNotificacion = false;
           _desbloqueoRegistrado = false;
           _timerNotificacion?.cancel();
-          // Bloquear la pantalla no es "salir de la app": sin aviso de 10 s
+          // Bloquear la pantalla no es "usar otra app": se detiene la cuenta
+          // de 10 s (igual que en el servicio nativo)
           _avisoSalidaPendiente = false;
+          _timerAvisoSalida?.cancel();
+          _timerAvisoSalida = null;
           // Al desbloquear se vuelve a informar la app en la que aparezca
           _paqueteReportado = null;
 

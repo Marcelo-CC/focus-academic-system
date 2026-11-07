@@ -1,5 +1,6 @@
 package com.example.estudiante_app
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,21 +10,26 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.PowerManager
 
 /**
  * Servicio en primer plano que se mantiene activo mientras dura la clase.
  *
- * Desde Android 14 el sistema "congela" las apps en segundo plano a los pocos
- * segundos. Mientras este servicio está activo (con su notificación fija),
- * Android NO congela la app, así que puede seguir detectando a qué apps va el
- * estudiante, los bloqueos y desbloqueos de pantalla.
+ * 1. Evita que Android "congele" la app en segundo plano (Android 14+).
+ * 2. Revisa CADA SEGUNDO, por su cuenta (sin depender de Flutter), si el
+ *    estudiante salió a otra app, y le muestra al instante el aviso
+ *    "Tienes 10 segundos para volver". Si no vuelve a tiempo, le avisa
+ *    que cometió una falta grave.
  */
 class MonitoreoService : Service() {
 
     companion object {
         private const val CANAL_ID = "monitoreo_clase"
         private const val NOTIFICACION_ID = 1001
+        private const val INTERVALO_MS = 1000L
 
         fun iniciar(context: Context) {
             val intent = Intent(context, MonitoreoService::class.java)
@@ -36,6 +42,23 @@ class MonitoreoService : Service() {
 
         fun detener(context: Context) {
             context.stopService(Intent(context, MonitoreoService::class.java))
+        }
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    // Momento en que salió de la app (0 = está en la app)
+    private var fueraDesde = 0L
+    private var faltaMostrada = false
+
+    private val revisar = object : Runnable {
+        override fun run() {
+            try {
+                revisarAppActual()
+            } catch (_: Exception) {
+                // Nunca debe detener el servicio
+            }
+            handler.postDelayed(this, INTERVALO_MS)
         }
     }
 
@@ -76,9 +99,57 @@ class MonitoreoService : Service() {
             startForeground(NOTIFICACION_ID, notificacion)
         }
 
+        fueraDesde = 0L
+        faltaMostrada = false
+        handler.removeCallbacks(revisar)
+        handler.post(revisar)
+
         // Si el sistema mata el proceso, no se reinicia solo:
         // la app retoma la clase cuando el estudiante la vuelve a abrir.
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(revisar)
+        AvisosSalida.cancelar(this)
+        super.onDestroy()
+    }
+
+    private fun reiniciarSalida() {
+        if (fueraDesde != 0L) {
+            fueraDesde = 0L
+            faltaMostrada = false
+            AvisosSalida.cancelar(this)
+        }
+    }
+
+    private fun revisarAppActual() {
+        // Pantalla apagada o bloqueada: no está usando otra app
+        val power = getSystemService(PowerManager::class.java)
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (!power.isInteractive || keyguard.isKeyguardLocked) {
+            reiniciarSalida()
+            return
+        }
+
+        val actual = UsoApps.appEnPrimerPlano(this) ?: return
+
+        if (actual == packageName) {
+            reiniciarSalida() // volvió a la app
+            return
+        }
+
+        // Está en otra app
+        val ahora = System.currentTimeMillis()
+        if (fueraDesde == 0L) {
+            fueraDesde = ahora
+            AvisosSalida.mostrarCuentaRegresiva(this)
+        } else if (!faltaMostrada &&
+            ahora - fueraDesde >= AvisosSalida.SEGUNDOS_PARA_VOLVER * 1000L
+        ) {
+            faltaMostrada = true
+            AvisosSalida.mostrarFaltaGrave(this)
+        }
     }
 
     private fun crearCanal() {
