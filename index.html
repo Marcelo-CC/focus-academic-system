@@ -660,7 +660,7 @@
               </div>
 
               <div class="card-title">
-                Estado de los Estudiantes (<span id="total-alumnos">0</span> Activos)
+                <span>Estado de los Estudiantes (<span id="total-alumnos">0</span> activos)</span>
               </div>
               <div class="students-grid" id="students-grid">
                 <div style="color: var(--text-muted); font-size: 13px; grid-column: 1 / -1;">Cargando estudiantes...</div>
@@ -1148,6 +1148,12 @@
       `${lista.length} evento${lista.length === 1 ? '' : 's'}`;
   }
 
+  // Orden natural: ESTUDIANTE1, ESTUDIANTE2 … ESTUDIANTE10 (no 1, 10, 11, 2…)
+  // y alfabético para los nombres reales (sin importar mayúsculas ni tildes).
+  function compararNombres(a, b) {
+    return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
+  }
+
   // Calcula, por estudiante, su estado actual (último evento) y sus distracciones.
   function calcularEstudiantes(registros) {
     const alumnosMap = {};
@@ -1203,7 +1209,7 @@
       }
     });
 
-    return Object.values(alumnosMap);
+    return Object.values(alumnosMap).sort((a, b) => compararNombres(a.nombre, b.nombre));
   }
 
   // MÓDULO 1: PANEL EN VIVO (siempre con los registros de HOY)
@@ -1249,7 +1255,7 @@
   // MÓDULOS 3, 4 Y 5: datos del DÍA SELECCIONADO en el calendario
   function renderDatosDia(registros) {
     ultimosRegistros = registros;
-    const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort();
+    const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort(compararNombres);
     actualizarOpcionesFiltro('filtro-bitacora', nombres);
     actualizarOpcionesFiltro('filtro-analitica', nombres);
     renderBitacora();
@@ -1733,7 +1739,7 @@
         .from('alertas_inactividad')
         .select('estudiante_nombre')
         .order('estudiante_nombre', { ascending: true }));
-      const nombres = [...new Set(filas.map(f => f.estudiante_nombre).filter(Boolean))].sort();
+      const nombres = [...new Set(filas.map(f => f.estudiante_nombre).filter(Boolean))].sort(compararNombres);
       actualizarOpcionesFiltro('limpiar-estudiante', nombres);
     } catch (err) {
       console.error('Error al cargar estudiantes:', err);
