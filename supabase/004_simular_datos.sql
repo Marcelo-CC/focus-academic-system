@@ -169,3 +169,7 @@ order by 1 desc;
 -- ---------------------------------------------------------------------
 -- delete from public.alertas_inactividad where true;
 -- delete from public.asistencias where true;
+
+-- NOTA: si ejecutas este script DESPUÉS de 005_clase_y_aula.sql, los datos
+-- nuevos quedarán sin aula. Para completarlos, vuelve a ejecutar la sección 2
+-- de 005_clase_y_aula.sql (solo rellena los registros que no tienen aula).

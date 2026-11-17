@@ -336,6 +336,20 @@
     .event-orange { background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
     .event-red { background-color: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
     .event-grave { background-color: #ffcdd2; border: 2px solid #c62828; }
+    .chip-aula {
+      display: inline-block;
+      background: #eef2ff;
+      color: #3949ab;
+      border: 1px solid #c5cae9;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .chip-aula-bitacora { margin-left: 6px; font-weight: 500; }
+    .clases-del-dia { font-size: 13px; color: #334155; margin: -8px 0 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .clases-del-dia:empty { display: none; }
     .event-gray { background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 
     /* BARRA DEL DÍA Y CALENDARIO */
@@ -738,6 +752,7 @@
           <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
             Registro automático derivado del porcentaje de atención acumulado durante la sesión.
           </p>
+          <div id="clases-del-dia" class="clases-del-dia"></div>
 
           <!-- Métricas Resumen -->
           <div class="gamification-metrics">
@@ -761,6 +776,7 @@
               <thead>
                 <tr>
                   <th>Estudiante</th>
+                  <th>Clase / Aula</th>
                   <th style="text-align: center;">% Enfoque</th>
                   <th style="text-align: center;">Eventos de Distracción</th>
                   <th style="text-align: center;">Nota Vigesimal (0-20)</th>
@@ -769,7 +785,7 @@
               </thead>
               <tbody id="tabla-notas-body">
                 <tr>
-                  <td colspan="5" style="text-align: center; color: var(--text-muted);">Esperando datos de la sesión...</td>
+                  <td colspan="6" style="text-align: center; color: var(--text-muted);">Esperando datos de la sesión...</td>
                 </tr>
               </tbody>
             </table>
@@ -1154,6 +1170,23 @@
     return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
   }
 
+  // "TESIS 2 · Aula J-301" a partir de un registro (vacío si es antiguo y no tiene aula)
+  function textoClase(registro) {
+    const partes = [registro.asignatura, registro.grupo].filter(Boolean);
+    return partes.join(' · ');
+  }
+
+  // Lista de clases/aulas del día seleccionado (encima de la tabla de notas)
+  function renderClasesDelDia() {
+    const caja = document.getElementById('clases-del-dia');
+    if (!caja) return;
+    const clases = [...new Set(ultimosRegistros.map(textoClase).filter(Boolean))].sort(compararNombres);
+    caja.innerHTML = clases.length
+      ? `<strong>Clases del ${escaparHtml(fechaSimple(diaSeleccionado))}:</strong> ` +
+        clases.map(c => `<span class="chip-aula">🏫 ${escaparHtml(c)}</span>`).join(' ')
+      : '';
+  }
+
   // Calcula, por estudiante, su estado actual (último evento) y sus distracciones.
   function calcularEstudiantes(registros) {
     const alumnosMap = {};
@@ -1171,8 +1204,15 @@
           estado: 'green',
           detalle: 'Activo / Enfoque',
           distracciones: 0,
-          faltasGraves: 0
+          faltasGraves: 0,
+          clases: []
         };
+      }
+
+      // Clase / aula donde ocurrió (registros nuevos)
+      const clase = textoClase(registro);
+      if (clase && !alumnosMap[nombre].clases.includes(clase)) {
+        alumnosMap[nombre].clases.push(clase);
       }
 
       // Conteo de eventos para gamificación
@@ -1273,12 +1313,15 @@
     if (!tbody) return;
 
     if (!estudiantesEstadoGlobal || estudiantesEstadoGlobal.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes el ${escaparHtml(fechaSimple(diaSeleccionado))}.</td></tr>`;
+      renderClasesDelDia();
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes el ${escaparHtml(fechaSimple(diaSeleccionado))}.</td></tr>`;
       document.getElementById('promedio-aula-val').innerText = '-- / 20';
       document.getElementById('count-destacados-val').innerText = '0';
       document.getElementById('count-riesgo-val').innerText = '0';
       return;
     }
+
+    renderClasesDelDia();
 
     let sumaNotas = 0;
     let destacados = 0;
@@ -1312,6 +1355,9 @@
       return `
         <tr>
           <td style="font-weight: bold; color: #334155;">${escaparHtml(al.nombre)}</td>
+          <td>${al.clases.length
+            ? al.clases.map(c => `<span class="chip-aula">🏫 ${escaparHtml(c)}</span>`).join(' ')
+            : '<span style="color: var(--text-muted); font-size: 12px;">Sin dato</span>'}</td>
           <td style="text-align: center;">${porcentajeEnfoque}%</td>
           <td style="text-align: center;">${al.distracciones} alertas${al.faltasGraves ? `<br><span style="color: #b71c1c; font-size: 12px; font-weight: 700;">🚨 ${al.faltasGraves} falta${al.faltasGraves === 1 ? '' : 's'} grave${al.faltasGraves === 1 ? '' : 's'}</span>` : ''}</td>
           <td style="text-align: center; font-size: 16px; font-weight: bold; color: ${colorNota};">
@@ -1492,7 +1538,9 @@
         mensaje = `${estudiante_nombre}: ${escaparHtml(evento)}`;
     }
 
-    return `<div class="event-card ${clase}"><span>${icono}</span><span>[${hora}] ${mensaje}</span></div>`;
+    const aula = textoClase(alerta);
+    const etiquetaAula = aula ? ` <span class="chip-aula chip-aula-bitacora">🏫 ${escaparHtml(aula)}</span>` : '';
+    return `<div class="event-card ${clase}"><span>${icono}</span><span>[${hora}] ${mensaje}${etiquetaAula}</span></div>`;
   }
 
   // =====================================================================

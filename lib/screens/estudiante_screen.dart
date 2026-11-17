@@ -873,6 +873,9 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       // Siempre en UTC (con "Z"). Sin zona horaria, Supabase la guardaba como
       // si ya fuera UTC y el panel mostraba la hora con 5 h de diferencia.
       'fecha_hora': (fecha ?? DateTime.now()).toUtc().toIso8601String(),
+      // Clase y aula en la que ocurrió (requiere supabase/005_clase_y_aula.sql)
+      'asignatura': _nombreAsignatura.isEmpty ? null : _nombreAsignatura,
+      'grupo': _grupoAula.isEmpty ? null : _grupoAula,
     };
 
     try {
@@ -931,12 +934,18 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         return;
       }
 
+      // Clase y aula de esta sesión (se guardan en cada registro)
+      _nombreAsignatura = sesion['asignatura']?.toString() ?? '';
+      _grupoAula = sesion['grupo']?.toString() ?? '';
+
       // 2. Registrar la asistencia
       await SupabaseConfig.client.from('asistencias').insert({
         'estudiante_id': SupabaseConfig.client.auth.currentUser?.id,
         'estudiante_nombre': widget.nombreEstudiante,
         'qr_contenido': codigo,
         'fecha_hora': DateTime.now().toUtc().toIso8601String(),
+        'asignatura': _nombreAsignatura.isEmpty ? null : _nombreAsignatura,
+        'grupo': _grupoAula.isEmpty ? null : _grupoAula,
       });
 
       if (!mounted) return;
