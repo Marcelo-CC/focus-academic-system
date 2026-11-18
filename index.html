@@ -515,7 +515,7 @@
     .apps-ranking { display: flex; flex-direction: column; gap: 12px; }
     .app-fila {
       display: grid;
-      grid-template-columns: 28px 130px 1fr 44px;
+      grid-template-columns: 28px 130px 1fr 90px;
       align-items: center;
       gap: 10px;
       font-size: 14px;
@@ -525,7 +525,7 @@
     .app-barra { height: 100%; border-radius: 6px; }
     .app-cantidad { text-align: right; font-weight: 700; }
     @media (max-width: 600px) {
-      .app-fila { grid-template-columns: 26px 90px 1fr 36px; font-size: 13px; }
+      .app-fila { grid-template-columns: 26px 80px 1fr 76px; font-size: 13px; }
     }
 
     /* TARJETA DEL TEMPORIZADOR SINO */
@@ -592,6 +592,50 @@
       font-size: 12px;
       display: inline-block;
     }
+
+    /* TIEMPO FUERA, CONCENTRACIÓN Y PUNTOS */
+    .student-metricas { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 11px; color: #475569; }
+    .nota-sub { font-size: 12px; color: var(--text-muted); }
+    .nota-explicacion { font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin: 0 0 18px; line-height: 1.6; }
+    .ranking-puntos { margin-bottom: 18px; border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px; padding: 10px 14px; }
+    .ranking-puntos:empty { display: none; }
+    .ranking-titulo { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #92400e; }
+    .ranking-fila { display: grid; grid-template-columns: 32px 1fr auto 70px; gap: 10px; align-items: center; padding: 5px 0; font-size: 14px; border-top: 1px solid #fef3c7; }
+    .ranking-fila:first-of-type { border-top: none; }
+    .ranking-pos { font-size: 18px; text-align: center; }
+    .ranking-nombre { font-weight: 600; }
+    .ranking-detalle { color: #92400e; font-size: 12px; }
+    .ranking-pts { text-align: right; }
+    .resumen-tiempos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .resumen-tiempos .metric-card-mini strong { font-size: 20px; }
+
+    /* PREGUNTAS RELÁMPAGO */
+    .quiz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 992px) { .quiz-grid { grid-template-columns: 1fr; } }
+    .quiz-opcion { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .quiz-letra { width: 28px; height: 28px; border-radius: 50%; background: #eef2ff; color: var(--primary); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .quiz-correcta-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; cursor: pointer; white-space: nowrap; }
+    .quiz-acciones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .quiz-acciones .btn { width: auto; }
+    .btn-relampago { background: #f59e0b; color: #fff; }
+    .btn-relampago:hover { background: #d97706; }
+    .btn-relampago:disabled { opacity: .6; cursor: default; }
+    .quiz-vacio { text-align: center; color: var(--text-muted); padding: 24px 10px; font-size: 14px; }
+    .quiz-pregunta { font-size: 17px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
+    .quiz-reloj { display: inline-block; font-weight: 800; font-size: 14px; padding: 4px 12px; border-radius: 999px; background: #fef3c7; color: #92400e; margin-bottom: 12px; }
+    .quiz-reloj.cerrada { background: #f1f5f9; color: #475569; }
+    .quiz-barra-fila { display: grid; grid-template-columns: 1fr 50px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+    .quiz-barra-texto { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+    .quiz-barra-fondo { background: #f1f5f9; border-radius: 6px; height: 12px; overflow: hidden; }
+    .quiz-barra { height: 100%; background: #94a3b8; border-radius: 6px; transition: width .4s; }
+    .quiz-barra.correcta { background: var(--green); }
+    .quiz-cantidad { text-align: right; font-weight: 700; }
+    .quiz-respuestas { margin-top: 14px; max-height: 260px; overflow-y: auto; border-top: 1px solid #e2e8f0; }
+    .quiz-respuesta { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; padding: 6px 2px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+    .quiz-historial-item { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .quiz-historial-cabecera { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .quiz-historial-pregunta { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .quiz-historial-datos { font-size: 13px; color: #334155; }
   </style>
 </head>
 <body>
@@ -639,6 +683,7 @@
       <button class="tab-btn" onclick="switchTab('tab-evaluacion')">3. Gamificación y Notas</button>
       <button class="tab-btn" onclick="switchTab('tab-analitica')">4. Analítica (BI)</button>
       <button class="tab-btn" onclick="switchTab('tab-bitacora')">5. Bitácora de Eventos</button>
+      <button class="tab-btn" onclick="switchTab('tab-preguntas')">6. Preguntas Relámpago ⚡</button>
     </nav>
 
     <main class="main-container">
@@ -768,7 +813,24 @@
               <span style="font-size: 12px; color: var(--text-muted); display: block;">Alumnos en Riesgo (< 11)</span>
               <strong style="font-size: 22px; color: var(--red);" id="count-riesgo-val">0</strong>
             </div>
+            <div class="metric-card-mini">
+              <span style="font-size: 12px; color: var(--text-muted); display: block;">Concentración promedio</span>
+              <strong style="font-size: 22px; color: var(--green);" id="concentracion-aula-val">--</strong>
+            </div>
+            <div class="metric-card-mini">
+              <span style="font-size: 12px; color: var(--text-muted); display: block;">Tiempo fuera promedio</span>
+              <strong style="font-size: 22px; color: #ca8a04;" id="tiempo-fuera-aula-val">--</strong>
+            </div>
           </div>
+
+          <div id="ranking-puntos" class="ranking-puntos"></div>
+
+          <p class="nota-explicacion">
+            <strong>Tiempo fuera:</strong> suma real de los segundos fuera de la app (desde que salió hasta que volvió).
+            <strong>Concentración:</strong> % del tiempo de clase que estuvo dentro de la app.
+            <strong>Puntos:</strong> +1 por minuto concentrado, −5 por salida, −10 por falta grave, −2 por ver notificaciones,
+            y en preguntas relámpago +10 (+5 por rapidez) si acierta o +2 por participar.
+          </p>
 
           <!-- Tabla de Calificaciones -->
           <div style="overflow-x: auto;">
@@ -777,7 +839,9 @@
                 <tr>
                   <th>Estudiante</th>
                   <th>Clase / Aula</th>
-                  <th style="text-align: center;">% Enfoque</th>
+                  <th style="text-align: center;">Tiempo fuera</th>
+                  <th style="text-align: center;">Concentración</th>
+                  <th style="text-align: center;">Puntos / Racha</th>
                   <th style="text-align: center;">Eventos de Distracción</th>
                   <th style="text-align: center;">Nota Vigesimal (0-20)</th>
                   <th style="text-align: center;">Insignia / Reconocimiento</th>
@@ -785,7 +849,7 @@
               </thead>
               <tbody id="tabla-notas-body">
                 <tr>
-                  <td colspan="6" style="text-align: center; color: var(--text-muted);">Esperando datos de la sesión...</td>
+                  <td colspan="8" style="text-align: center; color: var(--text-muted);">Esperando datos de la sesión...</td>
                 </tr>
               </tbody>
             </table>
@@ -809,7 +873,28 @@
           </div>
         </div>
         <div class="card" style="margin-top: 20px;">
-          <div class="card-title">Apps que usaron los estudiantes durante la clase</div>
+          <div class="card-title">Tiempo de permanencia fuera de la clase</div>
+          <div class="resumen-tiempos">
+            <div class="metric-card-mini">
+              <span class="nota-sub" style="display:block;">Tiempo total fuera</span>
+              <strong id="an-tiempo-total">--</strong>
+            </div>
+            <div class="metric-card-mini">
+              <span class="nota-sub" style="display:block;">Promedio por estudiante</span>
+              <strong id="an-tiempo-promedio">--</strong>
+            </div>
+            <div class="metric-card-mini">
+              <span class="nota-sub" style="display:block;">Salidas prolongadas (&gt; 10 s)</span>
+              <strong id="an-salidas-largas" style="color:#b71c1c;">--</strong>
+            </div>
+            <div class="metric-card-mini">
+              <span class="nota-sub" style="display:block;">Concentración promedio</span>
+              <strong id="an-concentracion" style="color:#15803d;">--</strong>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top: 20px;">
+          <div class="card-title">Apps que usaron los estudiantes durante la clase (veces y tiempo)</div>
           <div id="apps-ranking" class="apps-ranking">
             <div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin salidas registradas.</div>
           </div>
@@ -830,6 +915,57 @@
           <div id="alertas-container">
             <div style="text-align: center; color: var(--text-muted); padding: 20px;">Cargando registro de eventos...</div>
           </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 6: PREGUNTAS RELÁMPAGO -->
+      <div id="tab-preguntas" class="tab-content">
+        <div class="quiz-grid">
+          <div class="card">
+            <div class="card-title">⚡ Lanzar una pregunta relámpago</div>
+            <p class="nota-sub" style="margin-bottom: 14px;">
+              Aparece al instante en el celular de los estudiantes conectados. Acierto: +10 puntos
+              (+5 por rapidez). Respuesta incorrecta: +2 por participar.
+            </p>
+            <form id="form-pregunta" onsubmit="lanzarPregunta(event)">
+              <div class="form-group">
+                <label for="quiz-texto">Pregunta</label>
+                <textarea id="quiz-texto" class="form-control" rows="2" maxlength="200" required
+                  placeholder="Ej. ¿Qué diseño de investigación NO manipula variables?"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Opciones (marca la correcta; C y D son opcionales)</label>
+                <div id="quiz-opciones"></div>
+              </div>
+              <div class="form-group">
+                <label for="quiz-duracion">Tiempo para responder</label>
+                <select id="quiz-duracion" class="form-control">
+                  <option value="15">15 segundos</option>
+                  <option value="30" selected>30 segundos</option>
+                  <option value="45">45 segundos</option>
+                  <option value="60">1 minuto</option>
+                  <option value="120">2 minutos</option>
+                </select>
+              </div>
+              <div class="quiz-acciones">
+                <button type="submit" id="btn-lanzar" class="btn btn-relampago">⚡ Lanzar a la clase</button>
+                <span id="quiz-mensaje" class="nota-sub"></span>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span>📊 Pregunta en curso</span>
+              <button type="button" id="btn-cerrar-pregunta" class="btn btn-secundario" style="width:auto; display:none;" onclick="cerrarPreguntaActiva()">Cerrar ahora</button>
+            </div>
+            <div id="quiz-activa"><div class="quiz-vacio">No hay ninguna pregunta en curso.</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🗂️ Preguntas del día y participación</div>
+          <div id="quiz-historial"><div class="quiz-vacio">Sin preguntas este día.</div></div>
         </div>
       </div>
 
@@ -979,6 +1115,8 @@
     document.getElementById('input-grupo').value = grupo;
     document.getElementById('input-duracion').value = duracion;
     document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
+    sesionDocente = { duracion, creadoEn, estado };
+    obtenerAlertas();   // recalcular tiempos con la duración real de la clase
 
     if (creadoEn && estado === 'ACTIVA') {
       iniciarCronometroWeb(duracion, new Date(creadoEn));
@@ -1019,6 +1157,7 @@
 
     detenerQR();
     mostrarSesionFinalizada();
+    sesionDocente = { ...sesionDocente, estado: 'FINALIZADA' };
     msg.innerText = '✓ Clase terminada. Los estudiantes serán notificados.';
     setTimeout(() => { msg.innerText = ''; }, 4000);
   }
@@ -1044,6 +1183,7 @@
       }, { onConflict: 'docente_id' });
 
       iniciarCronometroWeb(duracion, new Date(horaInicioISO));
+      sesionDocente = { duracion, creadoEn: horaInicioISO, estado: 'ACTIVA' };
 
       document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
       msg.innerText = '✓ Guardado y sincronizado con alumnos';
@@ -1090,12 +1230,13 @@
     document.getElementById(tabId).classList.add('active');
     event.currentTarget.classList.add('active');
 
-    const conBarraDia = ['tab-evaluacion', 'tab-analitica', 'tab-bitacora'].includes(tabId);
+    const conBarraDia = ['tab-evaluacion', 'tab-analitica', 'tab-bitacora', 'tab-preguntas'].includes(tabId);
     document.getElementById('barra-dia').style.display = conBarraDia ? 'flex' : 'none';
     cerrarCalendario();
 
     if (tabId === 'tab-evaluacion') renderGamification();
     if (tabId === 'tab-analitica') renderGrafico();
+    if (tabId === 'tab-preguntas') renderPreguntas();
   }
 
   // ROTACIÓN DE CÓDIGO QR
@@ -1138,6 +1279,9 @@
   // PROCESAMIENTO EN TIEMPO REAL (MÓDULOS 1, 3 Y 5)
   // Últimos registros recibidos (para poder filtrar la bitácora sin volver a consultar)
   let ultimosRegistros = [];
+  let ultimasRespuestas = [];   // respuestas a preguntas relámpago del día seleccionado
+  let registrosHoyCache = [];   // para refrescar los tiempos del Panel en Vivo cada pocos segundos
+  let respuestasHoyCache = [];
 
   // Llena un <select> con la lista de estudiantes, conservando la opción elegida.
   function actualizarOpcionesFiltro(idSelect, nombres) {
@@ -1187,8 +1331,141 @@
       : '';
   }
 
+  // =====================================================================
+  // TIEMPO FUERA, CONCENTRACIÓN, RACHAS Y PUNTOS
+  // (mismas reglas que la app del estudiante: lib/utils/metricas_enfoque.dart)
+  // =====================================================================
+  const SEGUNDOS_LIMITE = 10;            // más de 10 s fuera = periodo prolongado
+  const TIPOS_SALIDA = ['salio_de_app', 'cerro_sesion'];
+  const TIPOS_RETORNO = ['regreso', 'regreso_tarde', 'ingreso', 'reabrio_app', 'reingreso_sesion', 'pantalla_bloqueada'];
+  const PUNTOS = { porMinuto: 1, salida: -5, faltaGrave: -10, notificacion: -2 };
+
+  // Clase configurada por el docente (para saber hasta cuándo medir)
+  let sesionDocente = { duracion: 45, creadoEn: null, estado: null };
+
+  function claseEnCurso() {
+    if (sesionDocente.estado !== 'ACTIVA' || !sesionDocente.creadoEn) return false;
+    const fin = new Date(sesionDocente.creadoEn).getTime() + sesionDocente.duracion * 60000;
+    return Date.now() < fin;
+  }
+
+  function nuevasMetricas() {
+    return {
+      inicio: null, ultimo: null,
+      fueraDesde: null, tramoDesde: null, appFuera: null,
+      segFuera: 0, salidas: 0, salidasLargas: 0, notificaciones: 0, faltas: 0,
+      porApp: {},                 // { TikTok: segundos }
+      rachaDesde: null, mejorRacha: 0, rachaActual: 0,
+      ventana: 0, enfoque: 0, concentracion: 100, puntosEnfoque: 0
+    };
+  }
+
+  // Procesa UN evento (en orden cronológico) de un estudiante
+  function sumarEventoMetricas(m, tipo, detalle, t) {
+    if (m.inicio === null) { m.inicio = t; m.rachaDesde = t; }
+    m.ultimo = t;
+
+    const cerrarTramo = () => {
+      if (m.appFuera !== null) {
+        m.porApp[m.appFuera] = (m.porApp[m.appFuera] || 0) + Math.max(0, (t - m.tramoDesde) / 1000);
+      }
+    };
+
+    if (TIPOS_SALIDA.includes(tipo) || (tipo === 'cambio_app' && m.fueraDesde === null)) {
+      if (m.fueraDesde === null) {
+        m.fueraDesde = t;
+        m.tramoDesde = t;
+        m.appFuera = tipo === 'cerro_sesion' ? 'Sesión cerrada' : (detalle || 'Otra App');
+        m.salidas++;
+        if (m.rachaDesde !== null) {
+          m.mejorRacha = Math.max(m.mejorRacha, (t - m.rachaDesde) / 1000);
+          m.rachaDesde = null;
+        }
+      }
+    } else if (tipo === 'cambio_app') {
+      cerrarTramo();
+      m.appFuera = detalle || 'Otra App';
+      m.tramoDesde = t;
+    } else if (TIPOS_RETORNO.includes(tipo)) {
+      if (m.fueraDesde !== null) {
+        cerrarTramo();
+        const dur = Math.max(0, (t - m.fueraDesde) / 1000);
+        m.segFuera += dur;
+        if (dur >= SEGUNDOS_LIMITE) m.salidasLargas++;
+        m.fueraDesde = null;
+        m.appFuera = null;
+      }
+      if (m.rachaDesde === null) m.rachaDesde = t;
+    } else if (tipo === 'vio_notificaciones') {
+      m.notificaciones++;
+      if (m.rachaDesde !== null) {
+        m.mejorRacha = Math.max(m.mejorRacha, (t - m.rachaDesde) / 1000);
+        m.rachaDesde = t;   // la racha vuelve a empezar
+      }
+    } else if (tipo === 'falta_grave') {
+      m.faltas++;
+    }
+  }
+
+  // Cierra las cuentas hasta el final de la ventana observada
+  function cerrarMetricas(m) {
+    if (m.inicio === null) return m;
+    const ahora = Date.now();
+    const esHoy = mismoDia(new Date(m.inicio), new Date());
+    const fin = (esHoy && claseEnCurso())
+      ? ahora
+      : Math.min(ahora, Math.max(m.ultimo, m.inicio + sesionDocente.duracion * 60000));
+
+    if (m.fueraDesde !== null) {
+      const dur = Math.max(0, (fin - m.fueraDesde) / 1000);
+      m.segFuera += dur;
+      if (dur >= SEGUNDOS_LIMITE) m.salidasLargas++;
+      if (m.appFuera !== null) {
+        m.porApp[m.appFuera] = (m.porApp[m.appFuera] || 0) + Math.max(0, (fin - m.tramoDesde) / 1000);
+      }
+    }
+    if (m.rachaDesde !== null) {
+      m.rachaActual = Math.max(0, (fin - m.rachaDesde) / 1000);
+      m.mejorRacha = Math.max(m.mejorRacha, m.rachaActual);
+    }
+
+    m.ventana = Math.max(1, (fin - m.inicio) / 1000);
+    m.segFuera = Math.min(m.segFuera, m.ventana);
+    m.enfoque = m.ventana - m.segFuera;
+    m.concentracion = Math.round((m.enfoque / m.ventana) * 100);
+    m.puntosEnfoque = Math.floor(m.enfoque / 60) * PUNTOS.porMinuto
+      + m.salidas * PUNTOS.salida
+      + m.faltas * PUNTOS.faltaGrave
+      + m.notificaciones * PUNTOS.notificacion;
+    return m;
+  }
+
+  // "1 min 20 s", "45 s", "1 h 5 min"
+  function formatearDuracion(segundos) {
+    const s = Math.round(segundos || 0);
+    if (s < 60) return `${s} s`;
+    const h = Math.floor(s / 3600);
+    const min = Math.floor((s % 3600) / 60);
+    const seg = s % 60;
+    if (h > 0) return `${h} h ${min} min`;
+    return seg ? `${min} min ${seg} s` : `${min} min`;
+  }
+
+  // Puntos ganados en preguntas relámpago por estudiante (del día cargado)
+  function puntosPreguntasPorNombre(respuestas) {
+    const mapa = {};
+    (respuestas || []).forEach(r => {
+      const n = r.estudiante_nombre || 'Estudiante';
+      if (!mapa[n]) mapa[n] = { puntos: 0, respondidas: 0, correctas: 0 };
+      mapa[n].puntos += r.puntos || 0;
+      mapa[n].respondidas++;
+      if (r.es_correcta) mapa[n].correctas++;
+    });
+    return mapa;
+  }
+
   // Calcula, por estudiante, su estado actual (último evento) y sus distracciones.
-  function calcularEstudiantes(registros) {
+  function calcularEstudiantes(registros, respuestas = []) {
     const alumnosMap = {};
 
     // Los registros llegan del más reciente al más antiguo; se recorren al revés
@@ -1205,9 +1482,12 @@
           detalle: 'Activo / Enfoque',
           distracciones: 0,
           faltasGraves: 0,
-          clases: []
+          clases: [],
+          metricas: nuevasMetricas()
         };
       }
+
+      sumarEventoMetricas(alumnosMap[nombre].metricas, item.evento, app, new Date(registro.fecha_hora).getTime());
 
       // Clase / aula donde ocurrió (registros nuevos)
       const clase = textoClase(registro);
@@ -1249,12 +1529,19 @@
       }
     });
 
+    const preguntas = puntosPreguntasPorNombre(respuestas);
+    Object.values(alumnosMap).forEach(al => {
+      cerrarMetricas(al.metricas);
+      al.preguntas = preguntas[al.nombre] || { puntos: 0, respondidas: 0, correctas: 0 };
+      al.puntos = Math.max(0, al.metricas.puntosEnfoque + al.preguntas.puntos);
+    });
+
     return Object.values(alumnosMap).sort((a, b) => compararNombres(a.nombre, b.nombre));
   }
 
   // MÓDULO 1: PANEL EN VIVO (siempre con los registros de HOY)
-  function renderPanelVivo(registros) {
-    const estudiantes = calcularEstudiantes(registros);
+  function renderPanelVivo(registros, respuestas = []) {
+    const estudiantes = calcularEstudiantes(registros, respuestas);
     const total = estudiantes.length;
 
     let greenCount = 0;
@@ -1286,6 +1573,11 @@
         <div class="student-info">
           <div class="student-name">${escaparHtml(est.nombre)}</div>
           <div class="student-detail">${escaparHtml(est.detalle)}</div>
+          <div class="student-metricas">
+            <span title="Tiempo total fuera de la clase">⏱ ${formatearDuracion(est.metricas.segFuera)} fuera</span>
+            <span title="Racha actual sin salir de la app">🔥 ${est.metricas.fueraDesde === null ? formatearDuracion(est.metricas.rachaActual) : '0 s'}</span>
+            <span title="Puntos acumulados">⭐ ${est.puntos}</span>
+          </div>
         </div>
       </div>
     `).join('')
@@ -1293,14 +1585,15 @@
   }
 
   // MÓDULOS 3, 4 Y 5: datos del DÍA SELECCIONADO en el calendario
-  function renderDatosDia(registros) {
+  function renderDatosDia(registros, respuestas = []) {
     ultimosRegistros = registros;
+    ultimasRespuestas = respuestas;
     const nombres = [...new Set(registros.map(r => r.estudiante_nombre || 'Estudiante'))].sort(compararNombres);
     actualizarOpcionesFiltro('filtro-bitacora', nombres);
     actualizarOpcionesFiltro('filtro-analitica', nombres);
     renderBitacora();
 
-    estudiantesEstadoGlobal = calcularEstudiantes(registros);
+    estudiantesEstadoGlobal = calcularEstudiantes(registros, respuestas);
     renderGamification();
     if (document.getElementById('tab-analitica').classList.contains('active')) {
       renderGrafico();
@@ -1314,10 +1607,13 @@
 
     if (!estudiantesEstadoGlobal || estudiantesEstadoGlobal.length === 0) {
       renderClasesDelDia();
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes el ${escaparHtml(fechaSimple(diaSeleccionado))}.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Sin datos de estudiantes el ${escaparHtml(fechaSimple(diaSeleccionado))}.</td></tr>`;
       document.getElementById('promedio-aula-val').innerText = '-- / 20';
       document.getElementById('count-destacados-val').innerText = '0';
       document.getElementById('count-riesgo-val').innerText = '0';
+      document.getElementById('concentracion-aula-val').innerText = '--';
+      document.getElementById('tiempo-fuera-aula-val').innerText = '--';
+      document.getElementById('ranking-puntos').innerHTML = '';
       return;
     }
 
@@ -1351,6 +1647,8 @@
       }
 
       const colorNota = notaVigesimal >= 11 ? '#16a34a' : '#dc2626';
+      const m = al.metricas;
+      const colorConc = m.concentracion >= 90 ? '#16a34a' : (m.concentracion >= 75 ? '#ca8a04' : '#dc2626');
 
       return `
         <tr>
@@ -1358,7 +1656,19 @@
           <td>${al.clases.length
             ? al.clases.map(c => `<span class="chip-aula">🏫 ${escaparHtml(c)}</span>`).join(' ')
             : '<span style="color: var(--text-muted); font-size: 12px;">Sin dato</span>'}</td>
-          <td style="text-align: center;">${porcentajeEnfoque}%</td>
+          <td style="text-align: center;">
+            <strong>${formatearDuracion(m.segFuera)}</strong>
+            ${m.salidasLargas ? `<br><span class="nota-sub">${m.salidasLargas} salida${m.salidasLargas === 1 ? '' : 's'} &gt; 10 s</span>` : ''}
+          </td>
+          <td style="text-align: center;">
+            <strong style="color: ${colorConc};">${m.concentracion}%</strong>
+            <br><span class="nota-sub">de ${formatearDuracion(m.ventana)}</span>
+          </td>
+          <td style="text-align: center;">
+            <strong>⭐ ${al.puntos}</strong>
+            <br><span class="nota-sub">🔥 mejor racha ${formatearDuracion(m.mejorRacha)}</span>
+            ${al.preguntas.respondidas ? `<br><span class="nota-sub">⚡ ${al.preguntas.correctas}/${al.preguntas.respondidas} preguntas</span>` : ''}
+          </td>
           <td style="text-align: center;">${al.distracciones} alertas${al.faltasGraves ? `<br><span style="color: #b71c1c; font-size: 12px; font-weight: 700;">🚨 ${al.faltasGraves} falta${al.faltasGraves === 1 ? '' : 's'} grave${al.faltasGraves === 1 ? '' : 's'}</span>` : ''}</td>
           <td style="text-align: center; font-size: 16px; font-weight: bold; color: ${colorNota};">
             ${notaVigesimal} / 20
@@ -1372,10 +1682,36 @@
       `;
     }).join('');
 
-    const promedio = (sumaNotas / estudiantesEstadoGlobal.length).toFixed(1);
+    const n = estudiantesEstadoGlobal.length;
+    const promedio = (sumaNotas / n).toFixed(1);
     document.getElementById('promedio-aula-val').innerText = `${promedio} / 20`;
     document.getElementById('count-destacados-val').innerText = destacados;
     document.getElementById('count-riesgo-val').innerText = enRiesgo;
+
+    const concPromedio = Math.round(estudiantesEstadoGlobal.reduce((s, a) => s + a.metricas.concentracion, 0) / n);
+    const fueraPromedio = estudiantesEstadoGlobal.reduce((s, a) => s + a.metricas.segFuera, 0) / n;
+    document.getElementById('concentracion-aula-val').innerText = `${concPromedio}%`;
+    document.getElementById('tiempo-fuera-aula-val').innerText = formatearDuracion(fueraPromedio);
+
+    renderRankingPuntos();
+  }
+
+  // Top 5 de puntos del día (gamificación)
+  function renderRankingPuntos() {
+    const caja = document.getElementById('ranking-puntos');
+    const top = [...estudiantesEstadoGlobal]
+      .sort((a, b) => b.puntos - a.puntos || b.metricas.mejorRacha - a.metricas.mejorRacha)
+      .slice(0, 5);
+    const medallas = ['🥇', '🥈', '🥉', '4.', '5.'];
+    caja.innerHTML = top.length
+      ? `<div class="ranking-titulo">🏆 Ranking de puntos del día</div>` + top.map((al, i) => `
+        <div class="ranking-fila">
+          <span class="ranking-pos">${medallas[i]}</span>
+          <span class="ranking-nombre">${escaparHtml(al.nombre)}</span>
+          <span class="ranking-detalle">🔥 ${formatearDuracion(al.metricas.mejorRacha)}</span>
+          <strong class="ranking-pts">⭐ ${al.puntos}</strong>
+        </div>`).join('')
+      : '';
   }
 
   function formatearHora(isoString) {
@@ -1612,15 +1948,267 @@
     try {
       const hoy = inicioDelDia(new Date());
       const esHoy = mismoDia(diaSeleccionado, hoy);
-      const [registrosHoy, registrosDia] = await Promise.all([
+      const [registrosHoy, registrosDia, quizHoy, quizDia] = await Promise.all([
         consultarAlertasDelDia(hoy),
-        esHoy ? Promise.resolve(null) : consultarAlertasDelDia(diaSeleccionado)
+        esHoy ? Promise.resolve(null) : consultarAlertasDelDia(diaSeleccionado),
+        consultarPreguntasDelDia(hoy),
+        esHoy ? Promise.resolve(null) : consultarPreguntasDelDia(diaSeleccionado)
       ]);
-      renderPanelVivo(registrosHoy);
-      renderDatosDia(esHoy ? registrosHoy : registrosDia);
+      registrosHoyCache = registrosHoy;
+      respuestasHoyCache = quizHoy.respuestas;
+      quizDeHoy = quizHoy;
+      quizDelDia = esHoy ? quizHoy : quizDia;
+
+      renderPanelVivo(registrosHoy, quizHoy.respuestas);
+      renderDatosDia(esHoy ? registrosHoy : registrosDia, quizDelDia.respuestas);
+      renderPreguntas();
     } catch (err) {
       console.error('Error al cargar los registros:', err);
     }
+  }
+
+  // El Panel en Vivo se recalcula cada 5 s (los tiempos y rachas avanzan solos)
+  setInterval(() => {
+    if (currentUser && document.getElementById('tab-vivo').classList.contains('active')) {
+      renderPanelVivo(registrosHoyCache, respuestasHoyCache);
+    }
+  }, 5000);
+
+  // =====================================================================
+  // MÓDULO 6: PREGUNTAS RELÁMPAGO
+  // =====================================================================
+  const LETRAS = ['A', 'B', 'C', 'D'];
+  let quizDeHoy = { preguntas: [], respuestas: [], claves: {} };
+  let quizDelDia = { preguntas: [], respuestas: [], claves: {} };
+  let relojQuiz = null;
+
+  // Preguntas, respuestas y claves (respuesta correcta) de un día.
+  // Si aún no se ejecutó el SQL 006, devuelve todo vacío sin romper el panel.
+  async function consultarPreguntasDelDia(fecha) {
+    const vacio = { preguntas: [], respuestas: [], claves: {} };
+    try {
+      const [inicio, fin] = rangoDia(fecha);
+      const { data: preguntas, error } = await supabaseClient
+        .from('preguntas_relampago')
+        .select('*')
+        .gte('creado_en', inicio)
+        .lt('creado_en', fin)
+        .order('creado_en', { ascending: false });
+      if (error) throw error;
+      if (!preguntas || preguntas.length === 0) return vacio;
+
+      const ids = preguntas.map(p => p.id);
+      const [{ data: respuestas }, { data: claves }] = await Promise.all([
+        supabaseClient.from('respuestas_relampago').select('*').in('pregunta_id', ids)
+          .order('creado_en', { ascending: true }),
+        supabaseClient.from('preguntas_relampago_clave').select('*').in('pregunta_id', ids)
+      ]);
+      const mapaClaves = {};
+      (claves || []).forEach(c => { mapaClaves[c.pregunta_id] = c.correcta; });
+      return { preguntas, respuestas: respuestas || [], claves: mapaClaves };
+    } catch (err) {
+      console.warn('Preguntas relámpago no disponibles (¿ejecutaste supabase/006_preguntas_relampago.sql?):', err.message || err);
+      return vacio;
+    }
+  }
+
+  function dibujarCamposOpciones() {
+    const caja = document.getElementById('quiz-opciones');
+    caja.innerHTML = LETRAS.map((letra, i) => `
+      <div class="quiz-opcion">
+        <span class="quiz-letra">${letra}</span>
+        <input type="text" id="quiz-op-${i}" class="form-control" maxlength="80"
+          placeholder="Opción ${letra}${i >= 2 ? ' (opcional)' : ''}" ${i < 2 ? 'required' : ''}>
+        <label class="quiz-correcta-label">
+          <input type="radio" name="quiz-correcta" value="${i}" ${i === 0 ? 'checked' : ''}> Correcta
+        </label>
+      </div>`).join('');
+  }
+
+  async function lanzarPregunta(event) {
+    event.preventDefault();
+    const msg = document.getElementById('quiz-mensaje');
+    const btn = document.getElementById('btn-lanzar');
+    const texto = document.getElementById('quiz-texto').value.trim();
+    const duracion = parseInt(document.getElementById('quiz-duracion').value, 10);
+    const marcada = parseInt(document.querySelector('input[name="quiz-correcta"]:checked')?.value ?? '0', 10);
+
+    // Solo las opciones escritas (A y B obligatorias)
+    const opciones = [];
+    let correcta = -1;
+    LETRAS.forEach((_, i) => {
+      const valor = document.getElementById(`quiz-op-${i}`).value.trim();
+      if (valor) {
+        if (i === marcada) correcta = opciones.length;
+        opciones.push(valor);
+      }
+    });
+
+    if (opciones.length < 2) { msg.innerText = 'Escribe al menos las opciones A y B.'; return; }
+    if (correcta < 0) { msg.innerText = 'La opción marcada como correcta está vacía.'; return; }
+
+    const [asignatura, grupo] = [document.getElementById('input-asignatura').value, document.getElementById('input-grupo').value];
+    btn.disabled = true;
+    msg.innerText = 'Enviando…';
+    const { error } = await supabaseClient.rpc('lanzar_pregunta', {
+      p_pregunta: texto, p_opciones: opciones, p_correcta: correcta, p_duracion: duracion,
+      p_asignatura: asignatura || null, p_grupo: grupo || null
+    });
+    btn.disabled = false;
+
+    if (error) {
+      console.error('Error al lanzar la pregunta:', error);
+      msg.innerText = /docente/i.test(error.message)
+        ? 'Tu usuario no está registrado como docente (tabla "docentes").'
+        : (/function|does not exist|schema cache/i.test(error.message)
+          ? 'Falta ejecutar en Supabase el script supabase/006_preguntas_relampago.sql.'
+          : 'No se pudo lanzar la pregunta. Inténtalo de nuevo.');
+      return;
+    }
+
+    msg.innerText = '✓ ¡Pregunta enviada a los estudiantes!';
+    setTimeout(() => { msg.innerText = ''; }, 4000);
+    document.getElementById('form-pregunta').reset();
+    obtenerAlertas();
+  }
+
+  async function cerrarPreguntaActiva() {
+    const activa = preguntaActiva();
+    if (!activa) return;
+    const { error } = await supabaseClient
+      .from('preguntas_relampago')
+      .update({ cierra_en: new Date().toISOString() })
+      .eq('id', activa.id);
+    if (error) console.error('Error al cerrar la pregunta:', error);
+    obtenerAlertas();
+  }
+
+  function preguntaActiva() {
+    return quizDeHoy.preguntas.find(p => new Date(p.cierra_en).getTime() > Date.now()) || null;
+  }
+
+  // Resultados de una pregunta: cuántos eligieron cada opción
+  function resultadosPregunta(pregunta, respuestas, claves) {
+    const opciones = Array.isArray(pregunta.opciones) ? pregunta.opciones : [];
+    const propias = respuestas.filter(r => r.pregunta_id === pregunta.id);
+    const conteo = opciones.map((_, i) => propias.filter(r => r.opcion === i).length);
+    const correcta = claves[pregunta.id];
+    const aciertos = propias.filter(r => r.es_correcta).length;
+    return { opciones, propias, conteo, correcta, aciertos };
+  }
+
+  function htmlBarras(res) {
+    const total = Math.max(1, res.propias.length);
+    return res.opciones.map((op, i) => {
+      const pct = Math.round((res.conteo[i] / total) * 100);
+      const esCorrecta = i === res.correcta;
+      return `<div class="quiz-barra-fila">
+        <div>
+          <div class="quiz-barra-texto"><span>${LETRAS[i]}. ${escaparHtml(op)} ${esCorrecta ? '✅' : ''}</span><span class="nota-sub">${pct}%</span></div>
+          <div class="quiz-barra-fondo"><div class="quiz-barra ${esCorrecta ? 'correcta' : ''}" style="width:${pct}%"></div></div>
+        </div>
+        <span class="quiz-cantidad">${res.conteo[i]}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPreguntas() {
+    if (!document.getElementById('quiz-opciones').children.length) dibujarCamposOpciones();
+    renderPreguntaActiva();
+    renderHistorialPreguntas();
+  }
+
+  function renderPreguntaActiva() {
+    const caja = document.getElementById('quiz-activa');
+    const btnCerrar = document.getElementById('btn-cerrar-pregunta');
+    clearInterval(relojQuiz);
+
+    // En curso, o la última de hoy (para ver sus resultados)
+    const activa = preguntaActiva();
+    const mostrar = activa || quizDeHoy.preguntas[0];
+    btnCerrar.style.display = activa ? 'inline-block' : 'none';
+
+    if (!mostrar) {
+      caja.innerHTML = '<div class="quiz-vacio">No hay ninguna pregunta en curso.<br>Lanza una desde el formulario.</div>';
+      return;
+    }
+
+    const res = resultadosPregunta(mostrar, quizDeHoy.respuestas, quizDeHoy.claves);
+    const conectados = new Set(registrosHoyCache.map(r => r.estudiante_nombre || 'Estudiante')).size;
+
+    caja.innerHTML = `
+      <div id="quiz-reloj" class="quiz-reloj ${activa ? '' : 'cerrada'}"></div>
+      <div class="quiz-pregunta">${escaparHtml(mostrar.pregunta)}</div>
+      <div class="nota-sub" style="margin-bottom:10px;">
+        ${res.propias.length} respuesta${res.propias.length === 1 ? '' : 's'}${conectados ? ` de ${conectados} estudiantes de hoy` : ''}
+        · ${res.aciertos} correcta${res.aciertos === 1 ? '' : 's'}
+      </div>
+      ${htmlBarras(res)}
+      <div class="quiz-respuestas">
+        ${res.propias.length ? res.propias.map(r => `
+          <div class="quiz-respuesta">
+            <span>${escaparHtml(r.estudiante_nombre || 'Estudiante')}</span>
+            <span>${r.es_correcta ? '✅' : '❌'} ${LETRAS[r.opcion] || '?'}</span>
+            <span class="nota-sub">${Number(r.segundos).toFixed(1)} s</span>
+            <strong>+${r.puntos}</strong>
+          </div>`).join('') : '<div class="quiz-vacio">Esperando respuestas…</div>'}
+      </div>`;
+
+    const actualizarReloj = () => {
+      const reloj = document.getElementById('quiz-reloj');
+      if (!reloj) return;
+      const restante = Math.ceil((new Date(mostrar.cierra_en).getTime() - Date.now()) / 1000);
+      if (activa && restante <= 0) {
+        clearInterval(relojQuiz);
+        renderPreguntas();   // pasa a "finalizada"
+        return;
+      }
+      reloj.innerText = activa ? `⏳ Quedan ${restante} s` : `Finalizada · ${formatearHora(mostrar.creado_en)}`;
+    };
+    actualizarReloj();
+    if (activa) relojQuiz = setInterval(actualizarReloj, 1000);
+  }
+
+  function renderHistorialPreguntas() {
+    const caja = document.getElementById('quiz-historial');
+    const { preguntas, respuestas, claves } = quizDelDia;
+    if (!preguntas.length) {
+      caja.innerHTML = `<div class="quiz-vacio">Sin preguntas el ${escaparHtml(fechaSimple(diaSeleccionado))}.</div>`;
+      return;
+    }
+
+    // Participación por estudiante
+    const porEstudiante = puntosPreguntasPorNombre(respuestas);
+    const filasEst = Object.entries(porEstudiante)
+      .sort((a, b) => b[1].puntos - a[1].puntos || compararNombres(a[0], b[0]));
+
+    caja.innerHTML = preguntas.map(p => {
+      const res = resultadosPregunta(p, respuestas, claves);
+      const pct = res.propias.length ? Math.round((res.aciertos / res.propias.length) * 100) : 0;
+      const correcta = res.correcta !== undefined ? `${LETRAS[res.correcta]}. ${escaparHtml(res.opciones[res.correcta] ?? '')}` : '—';
+      return `<div class="quiz-historial-item">
+        <div class="quiz-historial-cabecera">
+          <span>🕒 ${formatearHora(p.creado_en)} · ${p.duracion_seg} s</span>
+          ${textoClase(p) ? `<span class="chip-aula">🏫 ${escaparHtml(textoClase(p))}</span>` : ''}
+        </div>
+        <div class="quiz-historial-pregunta">${escaparHtml(p.pregunta)}</div>
+        <div class="quiz-historial-datos">
+          Respuesta correcta: <strong>${correcta}</strong> ·
+          ${res.propias.length} respuesta${res.propias.length === 1 ? '' : 's'} ·
+          <strong style="color:${pct >= 60 ? '#15803d' : '#b71c1c'}">${pct}% de aciertos</strong>
+        </div>
+      </div>`;
+    }).join('') + (filasEst.length ? `
+      <div class="ranking-puntos" style="margin-top:14px;">
+        <div class="ranking-titulo">🙋 Participación en preguntas relámpago</div>
+        ${filasEst.map(([nombre, d]) => `
+          <div class="ranking-fila">
+            <span class="ranking-pos">⚡</span>
+            <span class="ranking-nombre">${escaparHtml(nombre)}</span>
+            <span class="ranking-detalle">${d.correctas}/${d.respondidas} correctas</span>
+            <strong class="ranking-pts">+${d.puntos}</strong>
+          </div>`).join('')}
+      </div>` : '');
   }
 
   // Varios eventos seguidos en tiempo real => una sola recarga
@@ -1640,6 +2228,13 @@
     supabaseClient
       .channel('alertas-realtime-web')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inactividad' }, programarRecarga)
+      .subscribe();
+
+    // Canal aparte: si aún no existen las tablas del SQL 006, no afecta a las alertas
+    supabaseClient
+      .channel('preguntas-realtime-web')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'preguntas_relampago' }, programarRecarga)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'respuestas_relampago' }, programarRecarga)
       .subscribe();
   }
 
@@ -1754,22 +2349,28 @@
   // =====================================================================
   // RESTABLECER (BORRAR) REGISTROS
   // =====================================================================
-  function aplicarFiltrosLimpieza(consulta, estudiante, periodo) {
+  // Columna con la fecha en cada tabla
+  function columnaFecha(tabla) {
+    return tabla === 'respuestas_relampago' ? 'creado_en' : 'fecha_hora';
+  }
+
+  function aplicarFiltrosLimpieza(consulta, estudiante, periodo, columna = 'fecha_hora') {
     if (estudiante) consulta = consulta.eq('estudiante_nombre', estudiante);
     if (periodo === 'dia') {
       const [inicio, fin] = rangoDia(diaSeleccionado);
-      consulta = consulta.gte('fecha_hora', inicio).lt('fecha_hora', fin);
+      consulta = consulta.gte(columna, inicio).lt(columna, fin);
     } else {
       // Supabase no permite borrar sin filtro: este abarca todo el historial
-      consulta = consulta.gte('fecha_hora', '1970-01-01T00:00:00Z');
+      consulta = consulta.gte(columna, '1970-01-01T00:00:00Z');
     }
     return consulta;
   }
 
   async function contarRegistros(tabla, estudiante, periodo) {
+    const columna = columnaFecha(tabla);
     const consulta = aplicarFiltrosLimpieza(
-      supabaseClient.from(tabla).select('fecha_hora', { count: 'exact', head: true }),
-      estudiante, periodo);
+      supabaseClient.from(tabla).select(columna, { count: 'exact', head: true }),
+      estudiante, periodo, columna);
     const { count, error } = await consulta;
     if (error) throw error;
     return count || 0;
@@ -1853,10 +2454,14 @@
       for (const tabla of tablas) {
         esperados += await contarRegistros(tabla, estudiante, periodo);
         const { count, error: errBorrado } = await aplicarFiltrosLimpieza(
-          supabaseClient.from(tabla).delete({ count: 'exact' }), estudiante, periodo);
+          supabaseClient.from(tabla).delete({ count: 'exact' }), estudiante, periodo, columnaFecha(tabla));
         if (errBorrado) throw errBorrado;
         borrados += count || 0;
       }
+
+      // Puntos de preguntas relámpago del mismo periodo (si existe la tabla del SQL 006)
+      await aplicarFiltrosLimpieza(
+        supabaseClient.from('respuestas_relampago').delete(), estudiante, periodo, 'creado_en');
 
       // Si había registros pero no se borró ninguno, falta el permiso (SQL 002)
       if (esperados > 0 && borrados === 0) {
@@ -1914,7 +2519,28 @@
       else otros++;
     });
 
-    renderRankingApps(salidasPorApp);
+    // Tiempo de permanencia (calculado con la hora de salida y de regreso)
+    const estudiantesFiltro = calcularEstudiantes(alertas);
+    const tiempoPorApp = {};
+    let segTotal = 0;
+    let largas = 0;
+    let sumaConc = 0;
+    estudiantesFiltro.forEach(e => {
+      segTotal += e.metricas.segFuera;
+      largas += e.metricas.salidasLargas;
+      sumaConc += e.metricas.concentracion;
+      Object.entries(e.metricas.porApp).forEach(([app, seg]) => {
+        if (app === 'Sesión cerrada') return;
+        tiempoPorApp[app] = (tiempoPorApp[app] || 0) + seg;
+      });
+    });
+    const nEst = estudiantesFiltro.length;
+    document.getElementById('an-tiempo-total').innerText = nEst ? formatearDuracion(segTotal) : '--';
+    document.getElementById('an-tiempo-promedio').innerText = nEst ? formatearDuracion(segTotal / nEst) : '--';
+    document.getElementById('an-salidas-largas').innerText = nEst ? largas : '--';
+    document.getElementById('an-concentracion').innerText = nEst ? `${Math.round(sumaConc / nEst)}%` : '--';
+
+    renderRankingApps(salidasPorApp, tiempoPorApp);
 
     const total = salioApp + notificaciones + otros + faltas;
     const vacio = document.getElementById('analitica-vacia');
@@ -1958,23 +2584,27 @@
   }
 
   // Ranking de apps a las que salieron los estudiantes, con su logo.
-  function renderRankingApps(salidasPorApp) {
+  // Ordenado por TIEMPO de uso (y luego por cantidad de veces)
+  function renderRankingApps(salidasPorApp, tiempoPorApp = {}) {
     const contenedor = document.getElementById('apps-ranking');
-    const filas = Object.entries(salidasPorApp).sort((a, b) => b[1] - a[1]);
+    const apps = [...new Set([...Object.keys(salidasPorApp), ...Object.keys(tiempoPorApp)])];
+    const filas = apps
+      .map(app => [app, salidasPorApp[app] || 0, tiempoPorApp[app] || 0])
+      .sort((a, b) => b[2] - a[2] || b[1] - a[1]);
 
     if (filas.length === 0) {
       contenedor.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Sin salidas registradas.</div>';
       return;
     }
 
-    const maximo = filas[0][1];
-    contenedor.innerHTML = filas.map(([app, cantidad]) => {
-      const ancho = Math.max(4, Math.round((cantidad / maximo) * 100));
+    const maximo = Math.max(...filas.map(f => f[2]), 1);
+    contenedor.innerHTML = filas.map(([app, cantidad, segundos]) => {
+      const ancho = Math.max(4, Math.round((segundos / maximo) * 100));
       return `<div class="app-fila">
         ${logoApp(app)}
         <span>${escaparHtml(app)}</span>
         <div class="app-barra-fondo"><div class="app-barra" style="width:${ancho}%; background:#${infoApp(app).color}"></div></div>
-        <span class="app-cantidad">${cantidad}</span>
+        <span class="app-cantidad">${formatearDuracion(segundos)}<br><span class="nota-sub">${cantidad} ${cantidad === 1 ? 'vez' : 'veces'}</span></span>
       </div>`;
     }).join('');
   }

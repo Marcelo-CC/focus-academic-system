@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../utils/mensajes.dart';
+import '../utils/metricas_enfoque.dart';
+import '../widgets/pregunta_relampago_dialog.dart';
 import 'login_screen.dart';
 
 class EstudianteScreen extends StatefulWidget {
@@ -99,6 +102,20 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
   final List<Map<String, dynamic>> _alertasPendientes = [];
 
+  // ============================================================
+  // GAMIFICACIÓN: puntos, rachas y preguntas relámpago
+  // ============================================================
+  final List<EventoClase> _eventosClase = []; // eventos de ESTA clase
+  int _puntosPreguntas = 0;
+  int _preguntasRespondidas = 0;
+  int _preguntasCorrectas = 0;
+  int _ultimoHitoRacha = 0; // último aviso "🔥 X minutos seguidos"
+  static const int _minutosPorHito = 5;
+
+  RealtimeChannel? _canalPreguntas;
+  final Set<String> _preguntasVistas = {};
+  bool _mostrandoPregunta = false;
+
   @override
   void initState() {
     super.initState();
@@ -114,6 +131,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _timerVigilancia?.cancel();
     _timerEnfoque?.cancel();
     _timerAvisoSalida?.cancel();
+    _dejarDeEscucharPreguntas();
     WidgetsBinding.instance.removeObserver(this);
     _screenSubscription?.cancel();
     super.dispose();
@@ -146,6 +164,211 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     _timerDesbloqueo?.cancel();
     _cancelarAvisoSalida();
     _detenerServicioMonitoreo();
+    _dejarDeEscucharPreguntas();
+  }
+
+  // ============================================================
+  // GAMIFICACIÓN
+  // ============================================================
+  /// Métricas de la clase en curso hasta este momento.
+  MetricasEnfoque get _metricas {
+    DateTime fin = DateTime.now();
+    final DateTime? finClase = _horaFinEnfoque;
+    if (finClase != null && finClase.isBefore(fin)) fin = finClase;
+    return MetricasEnfoque.calcular(_eventosClase, fin);
+  }
+
+  int _puntosTotales(MetricasEnfoque m) {
+    final int total = m.puntosEnfoque + _puntosPreguntas;
+    return total < 0 ? 0 : total;
+  }
+
+  void _reiniciarGamificacion() {
+    _eventosClase.clear();
+    _puntosPreguntas = 0;
+    _preguntasRespondidas = 0;
+    _preguntasCorrectas = 0;
+    _ultimoHitoRacha = 0;
+    _preguntasVistas.clear();
+  }
+
+  /// Al retomar la clase: recupera sus eventos y puntos para no empezar de cero.
+  Future<void> _cargarHistorialClase(String? creadoEn) async {
+    final String? uid = SupabaseConfig.client.auth.currentUser?.id;
+    final DateTime? inicio = _parsearFechaSupabase(creadoEn);
+    if (uid == null || inicio == null) return;
+    final String desde = inicio.toUtc().toIso8601String();
+
+    try {
+      final List<dynamic> filas = await SupabaseConfig.client
+          .from('alertas_inactividad')
+          .select('evento, fecha_hora')
+          .eq('estudiante_id', uid)
+          .gte('fecha_hora', desde)
+          .order('fecha_hora', ascending: true);
+      _reiniciarGamificacion();
+      for (final dynamic f in filas) {
+        final DateTime? fecha = _parsearFechaSupabase(f['fecha_hora']);
+        if (fecha != null) {
+          _eventosClase.add(EventoClase('${f['evento']}', fecha));
+        }
+      }
+    } catch (e) {
+      debugPrint('No se pudo cargar el historial de la clase: $e');
+    }
+
+    try {
+      final List<dynamic> respuestas = await SupabaseConfig.client
+          .from('respuestas_relampago')
+          .select('pregunta_id, puntos, es_correcta')
+          .eq('estudiante_id', uid)
+          .gte('creado_en', desde);
+      for (final dynamic r in respuestas) {
+        _puntosPreguntas += (r['puntos'] as num?)?.toInt() ?? 0;
+        _preguntasRespondidas++;
+        if (r['es_correcta'] == true) _preguntasCorrectas++;
+        _preguntasVistas.add('${r['pregunta_id']}');
+      }
+    } catch (e) {
+      // Si aún no existe la tabla (SQL 006), simplemente no hay puntos extra
+      debugPrint('No se pudieron cargar las preguntas respondidas: $e');
+    }
+  }
+
+  /// Retroalimentación: "🔥 ¡5 minutos de enfoque seguidos!"
+  void _revisarHitoRacha() {
+    if (!_sesionIniciada || !_appEnPrimerPlano || !mounted) return;
+    final MetricasEnfoque m = _metricas;
+    final int hito = (m.rachaActual ~/ 60) ~/ _minutosPorHito * _minutosPorHito;
+    if (hito < _ultimoHitoRacha) _ultimoHitoRacha = hito; // la racha se reinició
+    if (hito >= _minutosPorHito && hito > _ultimoHitoRacha) {
+      _ultimoHitoRacha = hito;
+      mostrarAviso(
+        context,
+        '🔥 ¡$hito minutos de enfoque seguidos! Llevas ${_puntosTotales(m)} puntos.',
+        tipo: TipoAviso.exito,
+      );
+    }
+  }
+
+  // ============================================================
+  // PREGUNTAS RELÁMPAGO
+  // ============================================================
+  void _escucharPreguntas() {
+    if (_canalPreguntas != null) return;
+    try {
+      _canalPreguntas = SupabaseConfig.client
+          .channel('preguntas-relampago-app')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'preguntas_relampago',
+            callback: (PostgresChangePayload payload) {
+              _mostrarPregunta(payload.newRecord, enVivo: true);
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('No se pudo escuchar las preguntas relámpago: $e');
+    }
+  }
+
+  void _dejarDeEscucharPreguntas() {
+    final RealtimeChannel? canal = _canalPreguntas;
+    _canalPreguntas = null;
+    if (canal != null) {
+      SupabaseConfig.client.removeChannel(canal);
+    }
+  }
+
+  /// Por si llegó una pregunta mientras no había conexión o la app estaba cerrada.
+  Future<void> _buscarPreguntaAbierta() async {
+    final String? uid = SupabaseConfig.client.auth.currentUser?.id;
+    if (!_sesionIniciada || _mostrandoPregunta || uid == null) return;
+    try {
+      final Map<String, dynamic>? fila = await SupabaseConfig.client
+          .from('preguntas_relampago')
+          .select('id, pregunta, opciones, duracion_seg, cierra_en')
+          .gt('cierra_en', DateTime.now().toUtc().toIso8601String())
+          .order('creado_en', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (fila == null || _preguntasVistas.contains('${fila['id']}')) return;
+
+      final Map<String, dynamic>? yaRespondio = await SupabaseConfig.client
+          .from('respuestas_relampago')
+          .select('id')
+          .eq('pregunta_id', '${fila['id']}')
+          .eq('estudiante_id', uid)
+          .maybeSingle();
+      if (yaRespondio != null) {
+        _preguntasVistas.add('${fila['id']}');
+        return;
+      }
+      _mostrarPregunta(fila, enVivo: false);
+    } catch (e) {
+      debugPrint('No se pudo consultar preguntas relámpago: $e');
+    }
+  }
+
+  Future<void> _mostrarPregunta(
+    Map<String, dynamic> fila, {
+    required bool enVivo,
+  }) async {
+    final String id = '${fila['id'] ?? ''}';
+    if (id.isEmpty ||
+        !_sesionIniciada ||
+        !mounted ||
+        _mostrandoPregunta ||
+        _preguntasVistas.contains(id)) {
+      return;
+    }
+
+    dynamic crudo = fila['opciones'];
+    if (crudo is String) {
+      try {
+        crudo = jsonDecode(crudo);
+      } catch (_) {
+        crudo = null;
+      }
+    }
+    final List<String> opciones =
+        crudo is List ? crudo.map((dynamic o) => '$o').toList() : <String>[];
+    if (opciones.length < 2) return;
+
+    final int duracion = int.tryParse('${fila['duracion_seg']}') ?? 30;
+    int segundos = duracion;
+    if (!enVivo) {
+      // Encontrada al consultar: solo le queda el tiempo que falta
+      final DateTime? cierra = _parsearFechaSupabase(fila['cierra_en']);
+      if (cierra != null) {
+        segundos = cierra.difference(DateTime.now()).inSeconds.clamp(0, duracion);
+      }
+    }
+    if (segundos < 3) return;
+
+    _preguntasVistas.add(id);
+    _mostrandoPregunta = true;
+    final ResultadoPregunta? resultado = await showDialog<ResultadoPregunta>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext _) => PreguntaRelampagoDialog(
+        preguntaId: id,
+        pregunta: '${fila['pregunta'] ?? ''}',
+        opciones: opciones,
+        segundos: segundos,
+        nombreEstudiante: widget.nombreEstudiante,
+      ),
+    );
+    _mostrandoPregunta = false;
+
+    if (resultado != null && resultado.respondida && mounted) {
+      setState(() {
+        _puntosPreguntas += resultado.puntos;
+        _preguntasRespondidas++;
+        if (resultado.correcta) _preguntasCorrectas++;
+      });
+    }
   }
 
   // ============================================================
@@ -276,6 +499,9 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
       if (qr == null || !mounted) return;
       final String qrRecuperado = qr;
+      // Recupera sus eventos y puntos de esta clase (no empieza de cero)
+      await _cargarHistorialClase(creadoEn);
+      if (!mounted) return;
       setState(() {
         _sesionIniciada = true;
         qrDetectado = qrRecuperado.isEmpty ? null : qrRecuperado;
@@ -545,6 +771,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
 
     if (restantes > 0) {
       _iniciarCronometroEnfoque();
+      _escucharPreguntas();
+      _buscarPreguntaAbierta();
     } else {
       _terminarClase(mostrarMensaje: false);
     }
@@ -566,11 +794,13 @@ class _EstudianteScreenState extends State<EstudianteScreen>
         setState(() {
           _segundosRestantes = restantes;
         });
+        _revisarHitoRacha();
         _ticksDesdeVerificacion++;
         if (_ticksDesdeVerificacion >= _verificarClaseCada) {
           _ticksDesdeVerificacion = 0;
           _verificarClaseVigente();
           _enviarPendientes();
+          _buscarPreguntaAbierta();
         }
       } else {
         _terminarClase(mostrarMensaje: true);
@@ -828,6 +1058,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       final DateTime? desde = _salidaDesde;
       final int? segundosFuera =
           desde == null ? null : DateTime.now().difference(desde).inSeconds;
+      final bool huboSalida = _salidaReportada;
 
       _timerNotificacion?.cancel();
       _timerDesbloqueo?.cancel();
@@ -851,6 +1082,19 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       } else if (_estaEnSegundoPlano || _isScreenLockedOrOff) {
         _registrarAlerta('regreso');
       }
+
+      // Retroalimentación inmediata al estudiante
+      if (huboSalida && mounted) {
+        mostrarAviso(
+          context,
+          _faltaRegistrada
+              ? '🚨 Falta grave: −15 puntos y tu racha volvió a cero.'
+              : '⚠️ Saliste de la clase: −5 puntos y tu racha volvió a cero.',
+          tipo: TipoAviso.advertencia,
+        );
+      }
+      _buscarPreguntaAbierta();
+
       _salidaDesde = null;
       _faltaRegistrada = false;
       _estaEnSegundoPlano = false;
@@ -866,13 +1110,17 @@ class _EstudianteScreenState extends State<EstudianteScreen>
     String evento, {
     DateTime? fecha,
   }) async {
+    final DateTime momento = fecha ?? DateTime.now();
+    // Para los puntos, rachas y tiempo fuera que ve el estudiante en la app
+    _eventosClase.add(EventoClase(evento, momento));
+
     final Map<String, dynamic> registro = {
       'estudiante_id': SupabaseConfig.client.auth.currentUser?.id,
       'estudiante_nombre': widget.nombreEstudiante,
       'evento': evento,
       // Siempre en UTC (con "Z"). Sin zona horaria, Supabase la guardaba como
       // si ya fuera UTC y el panel mostraba la hora con 5 h de diferencia.
-      'fecha_hora': (fecha ?? DateTime.now()).toUtc().toIso8601String(),
+      'fecha_hora': momento.toUtc().toIso8601String(),
       // Clase y aula en la que ocurrió (requiere supabase/005_clase_y_aula.sql)
       'asignatura': _nombreAsignatura.isEmpty ? null : _nombreAsignatura,
       'grupo': _grupoAula.isEmpty ? null : _grupoAula,
@@ -959,6 +1207,7 @@ class _EstudianteScreenState extends State<EstudianteScreen>
       await _guardarSesionLocal(sesion, codigo);
 
       // 4. Iniciar monitoreo, servicio en primer plano y temporizador
+      _reiniciarGamificacion(); // clase nueva: puntos y racha desde cero
       await _registrarAlerta('ingreso');
       if (!mounted) return;
       _iniciarModoEnfoque(sesion);
@@ -1069,6 +1318,103 @@ class _EstudianteScreenState extends State<EstudianteScreen>
           ),
         );
       },
+    );
+  }
+
+  // ============================================================
+  // TARJETA DE GAMIFICACIÓN (retroalimentación en vivo)
+  // ============================================================
+  Widget _panelGamificacion(MetricasEnfoque m) {
+    final int puntos = _puntosTotales(m);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _datoGamificacion('⭐', '$puntos', 'Puntos'),
+              _datoGamificacion(
+                '🔥',
+                m.estaFuera ? '0 s' : formatearDuracion(m.rachaActual),
+                'Racha actual',
+              ),
+              _datoGamificacion(
+                '⏱',
+                formatearDuracion(m.segundosFuera),
+                'Tiempo fuera',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _chipGamificacion(m.insignia),
+              _chipGamificacion('🎯 Concentración ${m.concentracion}%'),
+              _chipGamificacion('🏅 Mejor racha ${formatearDuracion(m.mejorRacha)}'),
+              if (_preguntasRespondidas > 0)
+                _chipGamificacion(
+                  '⚡ Preguntas $_preguntasCorrectas/$_preguntasRespondidas',
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '+1 punto por minuto concentrado · −5 por salir · −10 por falta grave',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 10.5, color: Colors.brown.shade400),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _datoGamificacion(String icono, String valor, String etiqueta) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(icono, style: const TextStyle(fontSize: 20)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              valor,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF78350F),
+              ),
+            ),
+          ),
+          Text(
+            etiqueta,
+            style: TextStyle(fontSize: 11, color: Colors.brown.shade400),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chipGamificacion(String texto) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Text(
+        texto,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
     );
   }
 
@@ -1205,6 +1551,8 @@ class _EstudianteScreenState extends State<EstudianteScreen>
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        _panelGamificacion(_metricas),
                       ],
                       const Divider(height: 32),
                       if (qrDetectado != null) ...[
