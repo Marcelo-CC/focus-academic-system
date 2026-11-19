@@ -52,7 +52,9 @@ object UsoApps {
 
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val fin = System.currentTimeMillis()
-        val inicio = fin - 60 * 60 * 1000L // última hora
+        // Últimos 10 minutos: basta para saber qué app abrió y, como se
+        // consulta cada segundo, gasta mucha menos batería que leer una hora.
+        val inicio = fin - 10 * 60 * 1000L
 
         val eventos = usm.queryEvents(inicio, fin)
         val evento = UsageEvents.Event()

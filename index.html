@@ -1034,10 +1034,32 @@
     return 'No se pudo iniciar sesión. Inténtalo de nuevo.';
   }
 
+  // ¿La cuenta es de docente? (tabla "docentes", SQL 002/008).
+  // Si la tabla aún no existe, no se bloquea el acceso.
+  async function esCuentaDocente(user) {
+    const { data, error } = await supabaseClient
+      .from('docentes').select('user_id').eq('user_id', user.id).maybeSingle();
+    if (error) {
+      console.warn('No se pudo verificar el rol de docente:', error.message);
+      return true;
+    }
+    return !!data;
+  }
+
+  async function rechazarNoDocente() {
+    await supabaseClient.auth.signOut();
+    document.getElementById('login-view').style.display = 'flex';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('login-error').innerText =
+      'Esta cuenta no es de docente. Los estudiantes usan la app del celular.';
+    document.getElementById('btn-login-submit').innerText = 'Iniciar Sesión';
+  }
+
   // CONTROL DE SESIÓN DOCENTE (AUTH)
   async function verificarSesionExistente() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session && session.user) {
+      if (!(await esCuentaDocente(session.user))) { await rechazarNoDocente(); return; }
       currentUser = session.user;
       mostrarApp(session.user);
     } else {
@@ -1062,6 +1084,7 @@
       errorDiv.innerText = mensajeErrorLogin(error);
       btnSubmit.innerText = 'Iniciar Sesión';
     } else if (data.user) {
+      if (!(await esCuentaDocente(data.user))) { await rechazarNoDocente(); return; }
       currentUser = data.user;
       mostrarApp(data.user);
     }
@@ -1158,6 +1181,7 @@
     detenerQR();
     mostrarSesionFinalizada();
     sesionDocente = { ...sesionDocente, estado: 'FINALIZADA' };
+    refrescarHoy();
     msg.innerText = '✓ Clase terminada. Los estudiantes serán notificados.';
     setTimeout(() => { msg.innerText = ''; }, 4000);
   }
@@ -1173,7 +1197,8 @@
     const horaInicioISO = new Date().toISOString();
 
     try {
-      await supabaseClient.from('configuracion_sesion').upsert({
+      // Supabase NO lanza excepción si la base rechaza el guardado: hay que revisar "error"
+      const { error } = await supabaseClient.from('configuracion_sesion').upsert({
         docente_id: currentUser.id,
         asignatura: asignatura,
         grupo: grupo,
@@ -1181,9 +1206,11 @@
         estado: 'ACTIVA',
         creado_en: horaInicioISO
       }, { onConflict: 'docente_id' });
+      if (error) throw error;
 
       iniciarCronometroWeb(duracion, new Date(horaInicioISO));
       sesionDocente = { duracion, creadoEn: horaInicioISO, estado: 'ACTIVA' };
+      refrescarHoy();   // el Panel en Vivo pasa a mostrar la clase nueva
 
       document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
       msg.innerText = '✓ Guardado y sincronizado con alumnos';
@@ -2069,7 +2096,7 @@
 
   // Recarga todo (al entrar, al guardar la clase o tras restablecer registros)
   async function obtenerAlertas({ limpiarCache = false } = {}) {
-    if (limpiarCache) { cacheDias.clear(); hoyCargado = false; }
+    if (limpiarCache) { cacheDias.clear(); cacheMeses.clear(); hoyCargado = false; }
     await refrescarHoy();
     if (!mismoDia(diaSeleccionado, new Date())) await mostrarDiaSeleccionado();
     else renderHistorialPreguntas();
@@ -2391,17 +2418,28 @@
     renderCalendario();
   }
 
-  // Días del mes que tienen registros (se marcan con un punto rojo)
+  // Días del mes que tienen registros (se marcan con un punto rojo).
+  // Se guardan en memoria por mes; HOY se agrega con los datos en vivo.
+  const cacheMeses = new Map();
   async function diasConRegistros(mes) {
-    const inicio = new Date(mes.getFullYear(), mes.getMonth(), 1);
-    const fin = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
-    const filas = await consultarPaginado(() => supabaseClient
-      .from('alertas_inactividad')
-      .select('fecha_hora')
-      .gte('fecha_hora', inicio.toISOString())
-      .lt('fecha_hora', fin.toISOString())
-      .order('fecha_hora', { ascending: true }));
-    return new Set(filas.map(f => claveDia(new Date(f.fecha_hora))));
+    const clave = `${mes.getFullYear()}-${mes.getMonth()}`;
+    if (!cacheMeses.has(clave)) {
+      const inicio = new Date(mes.getFullYear(), mes.getMonth(), 1);
+      const fin = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
+      const promesa = consultarPaginado(() => supabaseClient
+        .from('alertas_inactividad')
+        .select('fecha_hora')
+        .gte('fecha_hora', inicio.toISOString())
+        .lt('fecha_hora', fin.toISOString())
+        .order('fecha_hora', { ascending: true }))
+        .then(filas => new Set(filas.map(f => claveDia(new Date(f.fecha_hora)))));
+      promesa.catch(() => cacheMeses.delete(clave));
+      cacheMeses.set(clave, promesa);
+    }
+    const dias = new Set(await cacheMeses.get(clave));
+    if (registrosHoyCache.length) dias.add(claveDia(new Date()));
+    else dias.delete(claveDia(new Date()));
+    return dias;
   }
 
   async function renderCalendario() {
