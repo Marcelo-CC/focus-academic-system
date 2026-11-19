@@ -840,6 +840,19 @@ class _EstudianteScreenState extends State<EstudianteScreen>
   }
 
   void _terminarClase({required bool mostrarMensaje}) {
+    // Marca el final de la clase para el docente (cierra el tiempo de clase
+    // con el que se calcula la concentración). Si el tiempo terminó con la
+    // app cerrada o en segundo plano, se usa la hora real de fin.
+    if (_sesionIniciada && _creadoEnSesion != null) {
+      final DateTime ahora = DateTime.now();
+      final DateTime? finPrevisto = _horaFinEnfoque;
+      _registrarAlerta(
+        'fin_clase',
+        fecha: (finPrevisto != null && finPrevisto.isBefore(ahora))
+            ? finPrevisto
+            : ahora,
+      );
+    }
     _creadoEnSesion = null;
     _finalizarMonitoreo();
     if (mounted) {

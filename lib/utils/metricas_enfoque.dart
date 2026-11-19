@@ -27,7 +27,7 @@ class MetricasEnfoque {
   static const List<String> _salidas = ['salio_de_app', 'cerro_sesion'];
   static const List<String> _retornos = [
     'regreso', 'regreso_tarde', 'ingreso', 'reabrio_app',
-    'reingreso_sesion', 'pantalla_bloqueada',
+    'reingreso_sesion', 'pantalla_bloqueada', 'fin_clase',
   ];
 
   int segundosFuera = 0;

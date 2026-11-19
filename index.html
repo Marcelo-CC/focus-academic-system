@@ -1116,7 +1116,7 @@
     document.getElementById('input-duracion').value = duracion;
     document.getElementById('header-curso-display').innerText = `${asignatura} - ${grupo}`;
     sesionDocente = { duracion, creadoEn, estado };
-    obtenerAlertas();   // recalcular tiempos con la duración real de la clase
+    obtenerAlertas();   // primera carga (ya con la clase del docente)
 
     if (creadoEn && estado === 'ACTIVA') {
       iniciarCronometroWeb(duracion, new Date(creadoEn));
@@ -1337,7 +1337,7 @@
   // =====================================================================
   const SEGUNDOS_LIMITE = 10;            // más de 10 s fuera = periodo prolongado
   const TIPOS_SALIDA = ['salio_de_app', 'cerro_sesion'];
-  const TIPOS_RETORNO = ['regreso', 'regreso_tarde', 'ingreso', 'reabrio_app', 'reingreso_sesion', 'pantalla_bloqueada'];
+  const TIPOS_RETORNO = ['regreso', 'regreso_tarde', 'ingreso', 'reabrio_app', 'reingreso_sesion', 'pantalla_bloqueada', 'fin_clase'];
   const PUNTOS = { porMinuto: 1, salida: -5, faltaGrave: -10, notificacion: -2 };
 
   // Clase configurada por el docente (para saber hasta cuándo medir)
@@ -1351,7 +1351,7 @@
 
   function nuevasMetricas() {
     return {
-      inicio: null, ultimo: null,
+      inicio: null, ultimo: null, finClase: null,
       fueraDesde: null, tramoDesde: null, appFuera: null,
       segFuera: 0, salidas: 0, salidasLargas: 0, notificaciones: 0, faltas: 0,
       porApp: {},                 // { TikTok: segundos }
@@ -1364,6 +1364,7 @@
   function sumarEventoMetricas(m, tipo, detalle, t) {
     if (m.inicio === null) { m.inicio = t; m.rachaDesde = t; }
     m.ultimo = t;
+    if (tipo === 'fin_clase') m.finClase = t;
 
     const cerrarTramo = () => {
       if (m.appFuera !== null) {
@@ -1407,14 +1408,19 @@
     }
   }
 
-  // Cierra las cuentas hasta el final de la ventana observada
-  function cerrarMetricas(m) {
+  // Cierra las cuentas hasta el final de la clase:
+  //  - clase de hoy en curso      → hasta ahora
+  //  - el estudiante tiene "fin_clase" → hasta ese momento
+  //  - si no                      → hasta el último evento de la clase (de cualquier estudiante)
+  function cerrarMetricas(m, finDia) {
     if (m.inicio === null) return m;
     const ahora = Date.now();
     const esHoy = mismoDia(new Date(m.inicio), new Date());
-    const fin = (esHoy && claseEnCurso())
-      ? ahora
-      : Math.min(ahora, Math.max(m.ultimo, m.inicio + sesionDocente.duracion * 60000));
+    let fin;
+    if (esHoy && claseEnCurso()) fin = ahora;
+    else if (m.finClase !== null) fin = m.finClase;
+    else fin = Math.max(m.ultimo, finDia || m.ultimo);
+    fin = Math.min(ahora, fin);
 
     if (m.fueraDesde !== null) {
       const dur = Math.max(0, (fin - m.fueraDesde) / 1000);
@@ -1465,8 +1471,12 @@
   }
 
   // Calcula, por estudiante, su estado actual (último evento) y sus distracciones.
-  function calcularEstudiantes(registros, respuestas = []) {
+  // finDia: fin de la clase de ese día (por defecto, el último evento registrado)
+  function calcularEstudiantes(registros, respuestas = [], finDia = null) {
     const alumnosMap = {};
+    if (finDia === null) {
+      finDia = registros.reduce((max, r) => Math.max(max, new Date(r.fecha_hora).getTime()), 0) || null;
+    }
 
     // Los registros llegan del más reciente al más antiguo; se recorren al revés
     // para que el "estado actual" de cada estudiante sea el de su ÚLTIMO evento.
@@ -1526,12 +1536,15 @@
       } else if (['regreso', 'regreso_tarde', 'ingreso', 'reabrio_app', 'reingreso_sesion'].includes(item.evento)) {
         alumnosMap[nombre].estado = 'green';
         alumnosMap[nombre].detalle = 'Activo / Enfoque';
+      } else if (item.evento === 'fin_clase') {
+        alumnosMap[nombre].estado = 'green';
+        alumnosMap[nombre].detalle = 'Terminó la clase';
       }
     });
 
     const preguntas = puntosPreguntasPorNombre(respuestas);
     Object.values(alumnosMap).forEach(al => {
-      cerrarMetricas(al.metricas);
+      cerrarMetricas(al.metricas, finDia);
       al.preguntas = preguntas[al.nombre] || { puntos: 0, respondidas: 0, correctas: 0 };
       al.puntos = Math.max(0, al.metricas.puntosEnfoque + al.preguntas.puntos);
     });
@@ -1540,7 +1553,18 @@
   }
 
   // MÓDULO 1: PANEL EN VIVO (siempre con los registros de HOY)
+  // Solo los eventos de la clase ACTUAL (desde que el docente la inició hoy).
+  // Así, si hubo otra clase más temprano, no se mezclan sus tiempos ni puntos.
+  function registrosDeLaClaseActual(registros) {
+    const inicio = sesionDocente.creadoEn ? new Date(sesionDocente.creadoEn) : null;
+    if (!inicio || !mismoDia(inicio, new Date())) return registros;
+    const desde = inicio.getTime() - 5 * 60000; // 5 min de margen por relojes desfasados
+    return registros.filter(r => new Date(r.fecha_hora || r.creado_en).getTime() >= desde);
+  }
+
   function renderPanelVivo(registros, respuestas = []) {
+    registros = registrosDeLaClaseActual(registros);
+    respuestas = registrosDeLaClaseActual(respuestas);
     const estudiantes = calcularEstudiantes(registros, respuestas);
     const total = estudiantes.length;
 
@@ -1870,6 +1894,11 @@
         clase = 'event-green';
         icono = '📱';
         break;
+      case 'fin_clase':
+        mensaje = `${estudiante_nombre} terminó la clase (fin del Modo Enfoque).`;
+        clase = 'event-gray';
+        icono = '🏁';
+        break;
       default:
         mensaje = `${estudiante_nombre}: ${escaparHtml(evento)}`;
     }
@@ -1944,27 +1973,106 @@
       .order('fecha_hora', { ascending: false }));
   }
 
-  async function obtenerAlertas() {
-    try {
-      const hoy = inicioDelDia(new Date());
-      const esHoy = mismoDia(diaSeleccionado, hoy);
-      const [registrosHoy, registrosDia, quizHoy, quizDia] = await Promise.all([
-        consultarAlertasDelDia(hoy),
-        esHoy ? Promise.resolve(null) : consultarAlertasDelDia(diaSeleccionado),
-        consultarPreguntasDelDia(hoy),
-        esHoy ? Promise.resolve(null) : consultarPreguntasDelDia(diaSeleccionado)
-      ]);
-      registrosHoyCache = registrosHoy;
-      respuestasHoyCache = quizHoy.respuestas;
-      quizDeHoy = quizHoy;
-      quizDelDia = esHoy ? quizHoy : quizDia;
+  // ---------------------------------------------------------------------
+  // CARGA DE DATOS
+  // - HOY se descarga al entrar y cada vez que llega un evento en tiempo real.
+  // - Los días ANTERIORES se guardan en memoria (no cambian): volver a un día
+  //   ya visto es instantáneo, y el día previo se precarga en segundo plano.
+  // ---------------------------------------------------------------------
+  const cacheDias = new Map();   // 'AAAA-MM-DD' -> Promise<{ registros, quiz }>
+  let hoyCargado = false;
+  let solicitudDia = 0;          // evita que una respuesta lenta pise a la del día actual
 
-      renderPanelVivo(registrosHoy, quizHoy.respuestas);
-      renderDatosDia(esHoy ? registrosHoy : registrosDia, quizDelDia.respuestas);
-      renderPreguntas();
-    } catch (err) {
-      console.error('Error al cargar los registros:', err);
+  function descargarDia(fecha) {
+    return Promise.all([consultarAlertasDelDia(fecha), consultarPreguntasDelDia(fecha)])
+      .then(([registros, quiz]) => ({ registros, quiz }));
+  }
+
+  function datosDiaAnterior(fecha) {
+    const clave = claveDia(fecha);
+    if (!cacheDias.has(clave)) {
+      const promesa = descargarDia(fecha);
+      promesa.catch(() => cacheDias.delete(clave)); // si falla, se reintenta luego
+      cacheDias.set(clave, promesa);
     }
+    return cacheDias.get(clave);
+  }
+
+  function precargarDiaPrevio(fecha) {
+    const previo = new Date(fecha);
+    previo.setDate(previo.getDate() - 1);
+    setTimeout(() => datosDiaAnterior(previo).catch(() => {}), 300);
+  }
+
+  function mostrarCargandoDia() {
+    const texto = `Cargando ${escaparHtml(fechaSimple(diaSeleccionado))}…`;
+    document.getElementById('clases-del-dia').innerHTML = '';
+    document.getElementById('tabla-notas-body').innerHTML =
+      `<tr><td colspan="8" style="text-align:center; color: var(--text-muted);">⏳ ${texto}</td></tr>`;
+    document.getElementById('ranking-puntos').innerHTML = '';
+    document.getElementById('alertas-container').innerHTML =
+      `<div style="text-align:center; color: var(--text-muted); padding: 20px;">⏳ ${texto}</div>`;
+    document.getElementById('quiz-historial').innerHTML = `<div class="quiz-vacio">⏳ ${texto}</div>`;
+    ['promedio-aula-val', 'count-destacados-val', 'count-riesgo-val', 'concentracion-aula-val', 'tiempo-fuera-aula-val']
+      .forEach(id => { document.getElementById(id).innerText = '…'; });
+  }
+
+  // Datos de HOY: Panel en Vivo (+ el resto de pestañas si el día elegido es hoy)
+  async function refrescarHoy() {
+    try {
+      const { registros, quiz } = await descargarDia(inicioDelDia(new Date()));
+      registrosHoyCache = registros;
+      respuestasHoyCache = quiz.respuestas;
+      quizDeHoy = quiz;
+      hoyCargado = true;
+      renderPanelVivo(registros, quiz.respuestas);
+      if (mismoDia(diaSeleccionado, new Date())) {
+        quizDelDia = quiz;
+        renderDatosDia(registros, quiz.respuestas);
+      }
+      renderPreguntaActiva();
+    } catch (err) {
+      console.error('Error al cargar los registros de hoy:', err);
+    }
+  }
+
+  // Datos del día elegido en el calendario (Notas, Analítica, Bitácora, Preguntas)
+  async function mostrarDiaSeleccionado() {
+    const token = ++solicitudDia;
+    const dia = diaSeleccionado;
+
+    if (mismoDia(dia, new Date())) {
+      if (!hoyCargado) { mostrarCargandoDia(); await refrescarHoy(); return; }
+      quizDelDia = quizDeHoy;
+      renderDatosDia(registrosHoyCache, quizDeHoy.respuestas);
+      renderHistorialPreguntas();
+      precargarDiaPrevio(dia);
+      return;
+    }
+
+    mostrarCargandoDia();
+    try {
+      const { registros, quiz } = await datosDiaAnterior(dia);
+      if (token !== solicitudDia) return; // el usuario ya cambió a otro día
+      quizDelDia = quiz;
+      renderDatosDia(registros, quiz.respuestas);
+      renderHistorialPreguntas();
+      precargarDiaPrevio(dia);
+    } catch (err) {
+      console.error('Error al cargar el día:', err);
+      if (token === solicitudDia) {
+        document.getElementById('alertas-container').innerHTML =
+          '<div style="text-align:center; color: var(--red); padding: 20px;">No se pudieron cargar los registros. Revisa tu conexión.</div>';
+      }
+    }
+  }
+
+  // Recarga todo (al entrar, al guardar la clase o tras restablecer registros)
+  async function obtenerAlertas({ limpiarCache = false } = {}) {
+    if (limpiarCache) { cacheDias.clear(); hoyCargado = false; }
+    await refrescarHoy();
+    if (!mismoDia(diaSeleccionado, new Date())) await mostrarDiaSeleccionado();
+    else renderHistorialPreguntas();
   }
 
   // El Panel en Vivo se recalcula cada 5 s (los tiempos y rachas avanzan solos)
@@ -2069,7 +2177,7 @@
     msg.innerText = '✓ ¡Pregunta enviada a los estudiantes!';
     setTimeout(() => { msg.innerText = ''; }, 4000);
     document.getElementById('form-pregunta').reset();
-    obtenerAlertas();
+    refrescarHoy();
   }
 
   async function cerrarPreguntaActiva() {
@@ -2080,7 +2188,7 @@
       .update({ cierra_en: new Date().toISOString() })
       .eq('id', activa.id);
     if (error) console.error('Error al cerrar la pregunta:', error);
-    obtenerAlertas();
+    refrescarHoy();
   }
 
   function preguntaActiva() {
@@ -2216,14 +2324,15 @@
   function programarRecarga() {
     clearTimeout(recargaPendiente);
     recargaPendiente = setTimeout(() => {
-      obtenerAlertas();
+      refrescarHoy();   // los eventos en vivo son siempre de hoy
       if (!document.getElementById('calendario').hidden) renderCalendario();
     }, 400);
   }
 
+  // (La primera carga la hace cargarConfiguracionSesion(), cuando ya se
+  //  conoce la clase del docente.)
   function escucharTiempoReal() {
     actualizarBotonesDia();
-    obtenerAlertas();
 
     supabaseClient
       .channel('alertas-realtime-web')
@@ -2242,7 +2351,7 @@
     diaSeleccionado = inicioDelDia(fecha);
     actualizarBotonesDia();
     cerrarCalendario();
-    obtenerAlertas();
+    mostrarDiaSeleccionado();
   }
 
   function cambiarDia(delta) {
@@ -2472,7 +2581,7 @@
 
       cerrarModalLimpiar();
       document.getElementById('limpiar-asistencias').checked = false;
-      obtenerAlertas();
+      obtenerAlertas({ limpiarCache: true });
       alert(`Listo: se borraron ${borrados} registro${borrados === 1 ? '' : 's'}.`);
     } catch (err) {
       console.error('Error al borrar registros:', err);
@@ -2499,7 +2608,7 @@
     // Bloquear/desbloquear tampoco: si al desbloquear entra a otra app, eso ya
     // se cuenta como "Cambió de App".
     const EVENTOS_POSITIVOS = ['ingreso', 'regreso', 'regreso_tarde', 'reabrio_app', 'reingreso_sesion',
-      'pantalla_bloqueada', 'desbloqueo'];
+      'pantalla_bloqueada', 'desbloqueo', 'fin_clase'];
     let salioApp = 0;
     let notificaciones = 0;
     let otros = 0;
@@ -2520,7 +2629,8 @@
     });
 
     // Tiempo de permanencia (calculado con la hora de salida y de regreso)
-    const estudiantesFiltro = calcularEstudiantes(alertas);
+    const finDia = todas.reduce((max, r) => Math.max(max, new Date(r.fecha_hora).getTime()), 0) || null;
+    const estudiantesFiltro = calcularEstudiantes(alertas, [], finDia);
     const tiempoPorApp = {};
     let segTotal = 0;
     let largas = 0;
